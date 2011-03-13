@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "deveelsql", "deveelsql\deveelsql.csproj", "{40AC9825-08A9-44B6-801C-E90AAD55BB5A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "deveelsql-nunit", "deveelsql-nunit\deveelsql-nunit.csproj", "{4C1DF795-CB96-4E87-BCA1-F96F4063EFB4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{40AC9825-08A9-44B6-801C-E90AAD55BB5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{40AC9825-08A9-44B6-801C-E90AAD55BB5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{40AC9825-08A9-44B6-801C-E90AAD55BB5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{40AC9825-08A9-44B6-801C-E90AAD55BB5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C1DF795-CB96-4E87-BCA1-F96F4063EFB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C1DF795-CB96-4E87-BCA1-F96F4063EFB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C1DF795-CB96-4E87-BCA1-F96F4063EFB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C1DF795-CB96-4E87-BCA1-F96F4063EFB4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

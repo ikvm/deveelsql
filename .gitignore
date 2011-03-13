@@ -1,0 +1,13 @@
+
+/src/_ReSharper.deveeldql.vs2008
+/src/deveelsql-nunit/obj
+/src/deveelsql-nunit/bin
+/src/deveelsql/Deveel.Data.Sql.Parser/ParseException.cs
+/src/deveelsql/Deveel.Data.Sql.Parser/SimpleCharStream.cs
+/src/deveelsql/Deveel.Data.Sql.Parser/SqlParser.cs
+/src/deveelsql/Deveel.Data.Sql.Parser/SqlParserConstants.cs
+/src/deveelsql/Deveel.Data.Sql.Parser/SqlParserTokenManager.cs
+/src/deveelsql/Deveel.Data.Sql.Parser/Token.cs
+/src/deveelsql/Deveel.Data.Sql.Parser/TokenMgrError.cs
+/src/deveelsql/obj
+/src/deveelsql/bin
