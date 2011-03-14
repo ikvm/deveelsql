@@ -20,12 +20,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.Diagnostics;
 
 namespace Deveel.Data.Sql {
 	/// <summary>
 	/// An immutable name of a table and any associated referencing information.
 	/// </summary>
 	[Serializable]
+	[DebuggerDisplay("{ToString(),nq}")]
 	public sealed class TableName : IComparable, IEquatable<TableName> {
 		/// <summary>
 		/// The constant 'schema_name' that defines a schema that is unknown.

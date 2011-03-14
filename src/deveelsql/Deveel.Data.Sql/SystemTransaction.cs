@@ -6,7 +6,7 @@ using Deveel.Data.Base;
 
 namespace Deveel.Data.Sql {
 	public sealed class SystemTransaction {
-		private readonly IFunctionManager functionManager;
+		private readonly SystemFunctionManager functionManager;
 		private readonly ISystemState state;
 		private ITransactionContext context;
 		private readonly QueryProcessor queryProcessor;
@@ -16,16 +16,12 @@ namespace Deveel.Data.Sql {
 		private Dictionary<Variable, ColumnStatistics> columnStats;
 		private FactStatistics factStats;
 
-		public SystemTransaction(ITransactionContext context, IFunctionManager functionManager, ISystemState state) {
+		public SystemTransaction(ITransactionContext context, ISystemState state) {
 			this.context = context;
 			this.state = state;
-			this.functionManager = functionManager;
+			functionManager = new SystemFunctionManager();
 
 			queryProcessor = new QueryProcessor(this);
-		}
-
-		public SystemTransaction(ITransactionContext context, ISystemState state)
-			: this(context, new SystemFunctionManager(), state) {
 		}
 
 		public QueryProcessor QueryProcessor {
@@ -43,7 +39,7 @@ namespace Deveel.Data.Sql {
 			get { return currentSchema; }
 		}
 
-		public IFunctionManager FunctionManager {
+		internal SystemFunctionManager FunctionManager {
 			get { return functionManager; }
 		}
 

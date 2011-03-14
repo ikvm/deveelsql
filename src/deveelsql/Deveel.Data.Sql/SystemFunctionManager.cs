@@ -5,7 +5,7 @@ using System.IO;
 using Deveel.Data.Sql.Parser;
 
 namespace Deveel.Data.Sql {
-	public sealed class SystemFunctionManager : IFunctionManager {
+	internal class SystemFunctionManager {
 		private readonly Dictionary<string, List<Function>> globalFunctions;
 		private readonly Dictionary<String, String> sysFunctionMap;
 

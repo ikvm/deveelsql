@@ -20,6 +20,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.Diagnostics;
 
 namespace Deveel.Data.Sql {
 	/// <summary>
@@ -33,6 +34,7 @@ namespace Deveel.Data.Sql {
 	/// </para>
 	/// </remarks>
 	[Serializable]
+	[DebuggerDisplay("{ToString(),nq}")]
 	public sealed class Variable : ICloneable, IComparable {
 		/// <summary>
 		/// Static that represents an unknown table name.
@@ -171,16 +173,8 @@ namespace Deveel.Data.Sql {
 		}
 
 		/// <inheritdoc/>
-		public override String ToString() {
+		public override string ToString() {
 			return TableName != null ? TableName + "." + Name : Name;
-		}
-
-		public String ToTechString() {
-			TableName tn = TableName;
-			if (tn != null) {
-				return tn.Schema + "^" + tn.Name + "^" + Name;
-			}
-			return Name;
 		}
 
 		/// <inheritdoc/>
