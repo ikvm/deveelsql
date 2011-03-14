@@ -20,8 +20,6 @@ namespace Deveel.Data.Sql {
 			this.types = types;
 			if (String.IsNullOrEmpty(reference))
 				reference = NoRefernece;
-			if (reference[0] != '$' && reference != NoRefernece)
-				reference = '$' + reference;
 			this.reference = String.Intern(reference);
 			this.match = match;
 		}

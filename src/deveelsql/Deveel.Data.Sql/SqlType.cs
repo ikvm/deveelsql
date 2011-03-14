@@ -69,6 +69,10 @@ namespace Deveel.Data.Sql {
 			}
 		}
 
+		public virtual bool IsComparable {
+			get { return !IsBinary; }
+		}
+
 		public bool HasSize {
 			get {
 				if (!IsSizeable)
@@ -223,7 +227,7 @@ namespace Deveel.Data.Sql {
 		}
 
 
-		public bool IsComparableTo(SqlType type) {
+		public virtual bool IsComparableTo(SqlType type) {
 			if (IsString && type.IsString)
 				return Equals(type);
 			if (IsNumeric && type.IsNumeric)

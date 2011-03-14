@@ -7,8 +7,8 @@ namespace Deveel.Data.Sql {
 	public sealed class SelectTest {
 		private SystemTransaction transaction;
 
-		[SetUp]
-		public void SetUp() {
+		[TestFixtureSetUp]
+		public void TestSetUp() {
 			MockTransactionContext context = new MockTransactionContext();
 			context.CreateSchema("test");
 			ITable table = context.CreateTable(new TableName("test", "names"));
@@ -86,6 +86,15 @@ namespace Deveel.Data.Sql {
 
 				Console.Out.WriteLine("{0} read the book {1} the day {2}", personName, bookTitle, date);
 			}
+		}
+
+		[Test]
+		public void GroupBySelect() {
+			Query query = new Query("select n.id, n.first_name, max(br.read_date) from names n, books b, book_read br where n.id = br.name_id and b.id = br.book_id group by n.id, n.last_name order by upper(n.last_name);");
+			SqlSelect sqlSelect = new SqlSelect(query);
+			ITableDataSource result = sqlSelect.Execute(transaction);
+
+			Assert.AreEqual(1, result.RowCount);
 		}
 	}
 }

@@ -388,12 +388,7 @@ Expression Statement() :
 { Expression exp;
 }
 { (   exp = SelectStatement()
-
-    | exp = ShowStatement()
     | exp = ExplainStatement()
-    | exp = DescribeStatement()
-    | exp = SetStatement()
-
   )
 
   ( ";" | <EOF> )
@@ -595,24 +590,6 @@ Expression TransactionStatement() :
   { return new FunctionExpression(functionName); }
 }
 
-Expression ShowStatement() :
-{ Token t;
-}
-{   <SHOW> ( t = <IDENTIFIER> | t = <SCHEMA> )
-  { FunctionExpression exp = new FunctionExpression("show");
-    exp.Parameters.Add(FetchStatic(new SqlObject(t.image)));
-    return exp;
-  }
-}
-
-Expression DescribeStatement() :
-{ Token tableName; }
-{   <DESCRIBE> tableName = TableName()
-  { FunctionExpression exp = new FunctionExpression("describe_table");
-    exp.Parameters.Add(FetchTable(tableName));
-    return exp;
-  }
-}
 
 Expression ExplainStatement() :
 { Expression selectExp; }
@@ -621,38 +598,6 @@ Expression ExplainStatement() :
     exp.Parameters.Add(selectExp);
     return exp;
   }
-}
-
-Expression SetStatement() :
-{ FunctionExpression setExp;
-  Expression arg;
-  string schemaName;
-  Token t;
-}
-{  <SET>
-   (    t=SQLIdentifier() <ASSIGNMENT> arg = Expression()
-         { setExp = new FunctionExpression("session_assignment");
-           setExp.Parameters.Add(FetchStatic(new SqlObject(Util.AsNonQuotedRef(t))));
-           setExp.Parameters.Add(arg);
-         }
-
-     |  <TRANSACTIONISOLATIONLEVEL> t=<SERIALIZABLE>
-         { setExp = new FunctionExpression("isolation_assignment");
-           setExp.Parameters.Add(FetchStatic(new SqlObject(t.image)));
-         }
-
-     |  <AUTOCOMMIT> ( t=<ON> | t=<IDENTIFIER> )
-         { setExp = new FunctionExpression("autocommit_assignment");
-           setExp.Parameters.Add(FetchStatic(new SqlObject(t.image)));
-         }
-
-     |  <SCHEMA> schemaName = NoneDeliminatedReference()
-         { setExp = new FunctionExpression("schema_assignment");
-           setExp.Parameters.Add(FetchStatic(new SqlObject(schemaName)));
-         }
-
-   )
-   { return setExp; }
 }
 
 // ---------- Function specifications ----------

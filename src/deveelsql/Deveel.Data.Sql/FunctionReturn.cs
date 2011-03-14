@@ -35,40 +35,33 @@ namespace Deveel.Data.Sql {
 			}
 		}
 		
-		private static bool TypeMatches(SqlType type, FunctionType[] types) {
+		private static bool TypeMatches(SqlType type, IEnumerable<FunctionType> types) {
 			foreach (FunctionType funcType in types) {
-				if (funcType.IsComparable) {
-					//TODO: also check for user-defined types that implement 'IComparable'
-					if (!type.IsBinary) {
-						return true;
-					}
-				} else if (funcType.Type.IsBoolean) {
-					if (type.IsBoolean) {
-						return true;
-					}
-				} else if (funcType.IsAny) {
+				//TODO: handle user-type specifics...
+				if (funcType.IsComparable && type.IsComparable)
 					return true;
-				} else if (funcType.Type.IsNumeric) {
-					if (type.IsNumeric) {
-						return true;
-					}
-				} else if (funcType.Type.IsString) {
-					if (type.IsString) {
-						return true;
-					}
-				} else if (funcType.IsTable) {
+				if (funcType.Type.IsBoolean && type.IsBoolean)
+					return true;
+				if (funcType.IsAny)
+					return true;
+				if (funcType.Type.IsNumeric && type.IsNumeric)
+					return true;
+				if (funcType.Type.IsString && type.IsString)
+					return true;
+				
+				if (funcType.IsTable)
 					// TODO?
 					return true;
-				} else {
-					throw new ApplicationException("Unknown type specification.");
-				}
+					
+				throw new ApplicationException("Unknown type specification.");
 			}
+
 			return false;
 		}
 		
-		private FunctionType TypesConsume(int paramIndex, int param_consume, IList<SqlType> args, int start, int end, FunctionType guessed_t) {
+		private FunctionType TypesConsume(int paramIndex, int paramConsume, IList<SqlType> args, int start, int end, FunctionType guessedT) {
 			// If size mismatch on consumed amount
-			if (end - start != param_consume)
+			if (end - start != paramConsume)
 				return null;
 
 			for (int i = start; i < end; ++i) {
@@ -79,10 +72,10 @@ namespace Deveel.Data.Sql {
 				if (!TypeMatches(t, types))
 					return null;
 				
-				if (guessed_t.IsReference) {
+				if (guessedT.IsReference) {
 					string reference = param.Reference;
-					if (guessed_t.Reference.Equals(reference)) {
-						guessed_t = new FunctionType(t);
+					if (guessedT.Reference.Equals(reference)) {
+						guessedT = new FunctionType(t);
 					}
 				}
 				// Go to the next param,
@@ -90,7 +83,7 @@ namespace Deveel.Data.Sql {
 			}
 
 			// All matches,
-			return guessed_t;
+			return guessedT;
 
 		}
 
@@ -100,10 +93,9 @@ namespace Deveel.Data.Sql {
 			string reference = param.Reference;
 			FunctionType[] types = param.Types;
 
-			if (end - start == 0) {
+			if (end - start == 0)
 				if (regexType == FunctionParameterMatch.OneOrMore) {
 					return null;
-				}
 			}
 			if (end - start > 1) {
 				if (regexType == FunctionParameterMatch.ZeroOrOne) {

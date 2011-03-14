@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+
+using Deveel.Data.Base;
 
 namespace Deveel.Data.Sql {
 	public sealed class MockTableIndex : ITableIndex {
@@ -8,16 +11,18 @@ namespace Deveel.Data.Sql {
 		private readonly TableName name;
 		private readonly string type;
 		private readonly string[] columns;
+		private readonly SortedIndex index; 
 
 		public MockTableIndex(TableName name, string type, TableName tableName, string[] columns) {
 			this.tableName = tableName;
 			this.type = type;
 			this.columns = columns;
 			this.name = name;
+			index = new SortedIndex(new MemoryStream(1024));
 		}
 
 		public IEnumerator<long> GetEnumerator() {
-			throw new NotImplementedException();
+			return index.GetCursor();
 		}
 
 		IEnumerator IEnumerable.GetEnumerator() {
@@ -25,15 +30,15 @@ namespace Deveel.Data.Sql {
 		}
 
 		public long Count {
-			get { throw new NotImplementedException(); }
+			get { return index.Count; }
 		}
 
 		public long First {
-			get { throw new NotImplementedException(); }
+			get { return index[0]; }
 		}
 
 		public long Last {
-			get { throw new NotImplementedException(); }
+			get { return index[Count - 1]; }
 		}
 
 		public string[] ColumnNames {
@@ -53,11 +58,11 @@ namespace Deveel.Data.Sql {
 		}
 
 		public void Add(long rowId) {
-			throw new NotImplementedException();
+			index.InsertSortKey(rowId);
 		}
 
 		public void Remove(long rowId) {
-			throw new NotImplementedException();
+			index.RemoveSortKey(rowId);
 		}
 
 		public int CompareTo(long rowid, IndexValue value) {
