@@ -2,10 +2,11 @@
 using System.Collections.Generic;
 
 using Deveel.Data.Base;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
 	public sealed partial class QueryProcessor {
-		private ITableDataSource Join(ITableDataSource left, ITableDataSource right, JoinExpression op) {
+		private ITable Join(ITable left, ITable right, JoinExpression op) {
 			// Get the type of join,
 			JoinType joinType = op.JoinType;
 			// The filter expression
@@ -45,7 +46,7 @@ namespace Deveel.Data.Sql {
 			IList<string> functionTypes = (IList<string>)op.GetArgument("!function_types");
 				
 			// Right index, if applicable
-			TableName rIndexStr = (TableName)op.GetArgument("use_right_index");
+			string rIndexStr = (string)op.GetArgument("use_right_index");
 			TableName rIndexTableName = (TableName)op.GetArgument("use_right_index_table_name");
 
 			// If the right index is defined, then we know the cost model has
@@ -76,7 +77,7 @@ namespace Deveel.Data.Sql {
 				rightResolver = CreateResolver(right, rops);
 					
 				// The working set,
-				IIndex workingSet = transaction.CreateTemporaryIndex(right.RowCount);
+				IIndex<RowId> workingSet = transaction.CreateTemporaryIndex<RowId>(right.RowCount);
 				
 				// Iterate over the right table
 				IRowCursor rightCursor = right.GetRowCursor();
@@ -85,7 +86,7 @@ namespace Deveel.Data.Sql {
 				
 				while (rightCursor.MoveNext()) {
 					// The rowid
-					long rowid = rightCursor.Current;
+					RowId rowid = rightCursor.Current;
 					// Fetch the SqlObject
 					SqlObject[] value = rightResolver.GetValue(rowid);
 					// Index it
@@ -121,8 +122,8 @@ namespace Deveel.Data.Sql {
 			}
 				
 			// Allocate the indexes
-			IIndex leftSet = transaction.CreateTemporaryIndex(maxSize);
-			IIndex rightSet = transaction.CreateTemporaryIndex(maxSize);
+			IIndex<RowId> leftSet = transaction.CreateTemporaryIndex<RowId>(maxSize);
+			IIndex<RowId> rightSet = transaction.CreateTemporaryIndex<RowId>(maxSize);
 				
 			// Create a resolver for the left terms
 			Expression[] lops = new Expression[leftVarExps.Count];
@@ -137,7 +138,7 @@ namespace Deveel.Data.Sql {
 
 			while (leftCursor.MoveNext()) {
 				// The left rowid
-				long leftRowid = leftCursor.Current;
+				RowId leftRowid = leftCursor.Current;
 					
 				// TODO: Need to change this to support multi-column join
 				//   conditions,
@@ -154,7 +155,7 @@ namespace Deveel.Data.Sql {
 				if (matchedResult.Count > 0) {
 					// For each matched element, add a left rowid and right rowid
 					while (matchedResult.MoveNext()) {
-						long rightRowid = matchedResult.Current;
+						RowId rightRowid = matchedResult.Current;
 						leftSet.Add(leftRowid);
 						rightSet.Add(rightRowid);
 					}
@@ -163,7 +164,7 @@ namespace Deveel.Data.Sql {
 					if (joinType == JoinType.OuterLeft) {
 						// Yes, so add left with a null entry,
 						leftSet.Add(leftRowid);
-						rightSet.Add(-1);
+						rightSet.Add(null);
 					}
 				}
 			}

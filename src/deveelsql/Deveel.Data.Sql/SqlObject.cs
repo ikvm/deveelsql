@@ -7,6 +7,7 @@ namespace Deveel.Data.Sql {
 	public sealed partial class SqlObject : IComparable, IComparable<SqlObject>, IEquatable<SqlObject> {
 		private readonly SqlType type;
 		private readonly SqlValue value;
+		private readonly SqlValue[] values;
 
 		public static readonly SqlObject Null = new SqlObject(SqlType.Null, SqlValue.Null);
 
@@ -22,12 +23,25 @@ namespace Deveel.Data.Sql {
 			: this(SqlType.TypeOf(value), SqlValue.FromObject(value)) {
 		}
 
+		internal SqlObject(SqlCompositeType type, SqlValue[] values) {
+			this.type = type;
+			this.values = values;
+		}
+
 		public SqlType Type {
 			get { return type; }
 		}
 
 		public SqlValue Value {
 			get { return value; }
+		}
+
+		internal SqlValue[] Values {
+			get { return values; }
+		}
+
+		public bool IsComposite {
+			get { return type is SqlCompositeType; }
 		}
 
 		public bool IsNull {
@@ -52,8 +66,8 @@ namespace Deveel.Data.Sql {
 			String s1 = v1.ToString();
 			String s2 = v2.ToString();
 			return s1 == null || s2 == null
-			       	? CompareNull(s1, s2)
-			       	: (collator == null ? s1.CompareTo(s2) : collator.Compare(s1, s2));
+					? CompareNull(s1, s2)
+					: (collator == null ? s1.CompareTo(s2) : collator.Compare(s1, s2));
 		}
 
 		public int CompareTo(SqlObject other) {
@@ -101,6 +115,40 @@ namespace Deveel.Data.Sql {
 			return new SqlObject(type, SqlValue.GetNull(type));
 		}
 
+		public static SqlObject MakeComposite(Array values) {
+			if (values == null)
+				return new SqlObject(new SqlCompositeType(new SqlType[] {SqlType.Null}), new SqlValue[0]);
+
+			int sz = values.Length;
+			SqlValue[] sqlValues = new SqlValue[sz];
+			SqlType[] sqlTypes = new SqlType[sz];
+			for (int i = 0; i < sz; i++) {
+				object value = values.GetValue(i);
+
+				sqlValues[i] = SqlValue.FromObject(value);
+				sqlTypes[i] = SqlType.TypeOf(value);
+			}
+
+			return new SqlObject(new SqlCompositeType(sqlTypes), sqlValues);
+		}
+
+		public static SqlObject MakeComposite(SqlObject[] values) {
+			if (values == null)
+				return new SqlObject(new SqlCompositeType(new SqlType[] { SqlType.Null }), new SqlValue[0]);
+
+			int sz = values.Length;
+			SqlValue[] sqlValues = new SqlValue[sz];
+			SqlType[] sqlTypes = new SqlType[sz];
+			for (int i = 0; i < sz; i++) {
+				SqlObject value = values[i];
+
+				sqlValues[i] = value.Value;
+				sqlTypes[i] = value.Type;
+			}
+
+			return new SqlObject(new SqlCompositeType(sqlTypes), sqlValues);
+		}
+
 		public SqlObject CastTo(SqlType destType) {
 			if (type.Equals(destType))
 				return this;
@@ -143,7 +191,7 @@ namespace Deveel.Data.Sql {
 				return val2.IsNull ? 0 : -1;
 			if (val2.IsNull)
 				return 1;
-				
+
 
 			// Check the types are equal,
 			SqlType type = val1.Type;
@@ -172,8 +220,8 @@ namespace Deveel.Data.Sql {
 			object obv2 = val2.Value.ToObject();
 
 			// Both values are none null,
-			IComparable obc1 = (IComparable) obv1;
-			IComparable obc2 = (IComparable) obv2;
+			IComparable obc1 = (IComparable)obv1;
+			IComparable obc2 = (IComparable)obv2;
 
 			return obc1.CompareTo(obc2);
 
@@ -211,6 +259,18 @@ namespace Deveel.Data.Sql {
 				throw new ArgumentNullException("destType");
 
 			return new SqlObject(destType, SqlValue.FromObject(destType.Cast(value)));
+		}
+
+		internal static SqlObject CompositeString(string[] array) {
+			int len = array.Length;
+			SqlType[] compArray = new SqlType[len];
+			SqlValue[] values = new SqlValue[len];
+			for (int i = 0; i < len; ++i) {
+				compArray[i] = SqlType.String;
+				values[i] = SqlValue.FromString(array[i]);
+			}
+
+			return new SqlObject(new SqlCompositeType(compArray), values);
 		}
 	}
 }

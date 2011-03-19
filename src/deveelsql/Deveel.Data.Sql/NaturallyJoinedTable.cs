@@ -1,12 +1,14 @@
 ﻿using System;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	public class NaturalJoinedTable : JoinedTableBase {
 
 		private readonly IRowCursor[] cursors;
 		private readonly long rowCount;
 
-		public NaturalJoinedTable(ITableDataSource[] tables)
+		public NaturalJoinedTable(ITable[] tables)
 			: base(tables) {
 			// Set up the row cursors,
 			rowCount = 1;
@@ -17,15 +19,15 @@ namespace Deveel.Data.Sql {
 			}
 		}
 
-		public NaturalJoinedTable(ITableDataSource left, ITableDataSource right)
-			: this(new ITableDataSource[] { left, right }) {
+		public NaturalJoinedTable(ITable left, ITable right)
+			: this(new ITable[] { left, right }) {
 		}
 
 		public override long RowCount {
 			get { return rowCount; }
 		}
 
-		protected override long AdjustRow(long row, int tableIndex) {
+		protected override RowId AdjustRow(long row, int tableIndex) {
 			// NOTE, we know that row will be between 0 and RowCount,
 			long divAmount = 1;
 			for (int i = Tables.Length - 1; i > tableIndex; --i)

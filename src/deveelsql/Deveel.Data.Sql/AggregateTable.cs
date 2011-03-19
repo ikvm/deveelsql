@@ -2,21 +2,23 @@
 using System.Diagnostics;
 
 using Deveel.Data.Base;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
 	public class AggregateTable : FilteredTable {
 		private FunctionExpression aggregateComposite;
-		private IIndex childGroupsIndex;
+		private IIndex<long> childGroupsIndex;
 		private IRowCursor lookupCursor;
 
-		public AggregateTable(ITableDataSource child, FunctionExpression aggregateComposite)
+		public AggregateTable(ITable child, FunctionExpression aggregateComposite)
 			: base(child) {
 			this.aggregateComposite = aggregateComposite;
 		}
 
-		public void InitGroups(QueryProcessor processor, IIndex emptyIndexContainer) {
+		public void InitGroups(QueryProcessor processor, IIndex<long> emptyIndexContainer) {
 			Debug.Assert(emptyIndexContainer.Count == 0);
-			ITableDataSource child = BaseTable;
+
+			ITable child = BaseTable;
 			// No groups, so make the entire child table the group,
 			if (aggregateComposite == null || child.RowCount <= 1) {
 				emptyIndexContainer.Add(0);
@@ -26,7 +28,7 @@ namespace Deveel.Data.Sql {
 			else {
 				// Create a resolver for the composite function
 				IndexResolver resolver = processor.CreateResolver(child, aggregateComposite);
-				
+
 				// The groups state
 				long groupPos = 0;
 				long groupSize = 0;
@@ -34,7 +36,7 @@ namespace Deveel.Data.Sql {
 				// Scan over the child
 				IRowCursor cursor = child.GetRowCursor();
 				while (cursor.MoveNext()) {
-					long rowid = cursor.Current;
+					RowId rowid = cursor.Current;
 					// Get the group term
 					SqlObject[] groupValue = resolver.GetValue(rowid);
 					if (lastComposite == null) {
@@ -66,11 +68,11 @@ namespace Deveel.Data.Sql {
 				}
 			}
 			// Set the group index
-			this.childGroupsIndex = emptyIndexContainer;
-			this.lookupCursor = BaseTable.GetRowCursor();
+			childGroupsIndex = emptyIndexContainer;
+			lookupCursor = BaseTable.GetRowCursor();
 		}
 
-		public ITableDataSource GetGroupValue(long rowid) {
+		public ITable GetGroupValue(long rowid) {
 			long n = (rowid * 2);
 			// Get the group position and size in the index
 			long groupPos = childGroupsIndex[n];

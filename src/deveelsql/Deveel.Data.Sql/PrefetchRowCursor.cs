@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	public class PrefetchRowCursor : IRowCursor {
 		private readonly IRowCursor cursor;
-		private readonly ITableDataSource table;
+		private readonly ITable table;
 
 		private readonly long[] pageRead = new long[16];
 		private int readp = 0;
@@ -12,7 +14,7 @@ namespace Deveel.Data.Sql {
 		private const long PageSize = 80;
 
 
-		public PrefetchRowCursor(IRowCursor cursor, ITableDataSource table) {
+		public PrefetchRowCursor(IRowCursor cursor, ITable table) {
 			this.cursor = cursor;
 			this.table = table;
 
@@ -52,8 +54,8 @@ namespace Deveel.Data.Sql {
 				cursor.MoveTo(pagep - 1);
 				for (int i = 0; i < PageSize && cursor.MoveNext(); ++i) {
 					try {
-						long row_id = cursor.Current;
-						table.FetchValue(-1, row_id);
+						RowId row_id = cursor.Current;
+						table.PrefetchValue(-1, row_id);
 					} catch (ApplicationException e) {
 						//TODO: log ...
 						throw;
@@ -97,7 +99,7 @@ namespace Deveel.Data.Sql {
 			return cursor.MoveBack();
 		}
 
-		public long Current {
+		public RowId Current {
 			get { return cursor.Current; }
 		}
 

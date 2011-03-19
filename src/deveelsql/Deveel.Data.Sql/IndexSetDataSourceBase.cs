@@ -3,17 +3,20 @@ using System.Collections;
 using System.Collections.Generic;
 
 using Deveel.Data.Base;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
 	public abstract class IndexSetDataSourceBase : IIndexSetDataSource {
-		private  IIndex index;
+		private IIndex<RowId> index;
+		private readonly ITable table;
 
 		private const byte FirstValue = 1;
 		private const byte LastValue = 2;
 		private const byte BeforeFirstValue = 3;
 		private const byte AfterLastValue = 4;
 
-		protected IndexSetDataSourceBase(IIndex index) {
+		protected IndexSetDataSourceBase(ITable table, IIndex<RowId> index) {
+			this.table = table;
 			this.index = index;
 		}
 
@@ -25,7 +28,7 @@ namespace Deveel.Data.Sql {
 
 		public abstract TableName SourceTableName { get; }
 
-		public abstract TableName Name { get; }
+		public abstract string Name { get; }
 
 		public abstract IndexCollation Collation { get; }
 
@@ -37,7 +40,7 @@ namespace Deveel.Data.Sql {
 			return index.SearchLast(val, resolver);
 		}
 
-		private IIndexCursor CreateRangeCursor(long p1, long p2) {
+		private IIndexCursor<RowId> CreateRangeCursor(long p1, long p2) {
 			return index.GetCursor(p1, p2);
 		}
 
@@ -135,7 +138,7 @@ namespace Deveel.Data.Sql {
 			}
 		}
 
-		private IIndexCursor RangeCursor(IndexResolver resolver, SqlObject[] lower, SqlObject[] upper, bool lowerAtFirst, bool upperAtLast) {
+		private IIndexCursor<RowId> RangeCursor(IndexResolver resolver, SqlObject[] lower, SqlObject[] upper, bool lowerAtFirst, bool upperAtLast) {
 			long p1 = PositionOfRangePoint(resolver, lowerAtFirst ? FirstValue : AfterLastValue, lower);
 			long p2 = PositionOfRangePoint(resolver, upperAtLast ? LastValue : BeforeFirstValue, upper);
 
@@ -157,7 +160,7 @@ namespace Deveel.Data.Sql {
 				return GetCursor();
 
 			// The set of cursors
-			List<IIndexCursor> cursors = new List<IIndexCursor>();
+			List<IIndexCursor<RowId>> cursors = new List<IIndexCursor<RowId>>();
 			// A resolver for values in this index
 			IndexResolver resolver = IndexResolver;
 			// For each range pair,
@@ -170,7 +173,7 @@ namespace Deveel.Data.Sql {
 				bool upperAtLast = en.IsUpperBoundAtLast;
 
 				// Generate an cursor for the range,
-				IIndexCursor cursor = RangeCursor(resolver, lower, upper, lowerAtFirst, upperAtLast);
+				IIndexCursor<RowId> cursor = RangeCursor(resolver, lower, upper, lowerAtFirst, upperAtLast);
 				if (cursor != null)
 					// Select the range
 					cursors.Add(cursor);
@@ -184,14 +187,14 @@ namespace Deveel.Data.Sql {
 			index.Clear();
 		}
 
-		public void Insert(long rowid) {
+		public void Insert(RowId rowid) {
 			// A resolver for values in this index
 			IndexResolver resolver = IndexResolver;
 			// Insert the value into sorted position in the index
 			index.Insert(resolver.GetValue(rowid), rowid, resolver);
 		}
 
-		public void Remove(long rowid) {
+		public void Remove(RowId rowid) {
 			// A resolver for values in this index
 			IndexResolver resolver = IndexResolver;
 			// Remove the value from sorted position in the index
@@ -200,13 +203,13 @@ namespace Deveel.Data.Sql {
 
 		#region SubsetIndexCursor
 
-		private sealed class SubsetIndexCursor : IIndexCursor {
-			private readonly List<IIndexCursor> cursors;
+		private sealed class SubsetIndexCursor : IIndexCursor<RowId> {
+			private readonly List<IIndexCursor<RowId>> cursors;
 			private long position;
 			private int cursorIndex;
 			private long cursorOffset;
 
-			public SubsetIndexCursor(List<IIndexCursor> cursors) {
+			public SubsetIndexCursor(List<IIndexCursor<RowId>> cursors) {
 				this.cursors = cursors;
 				Position = -1;
 			}
@@ -234,7 +237,7 @@ namespace Deveel.Data.Sql {
 						// Is this point in the first cursor?
 						cursorIndex = 0;
 
-						IIndexCursor iterator = cursors[cursorIndex];
+						IIndexCursor<RowId> iterator = cursors[cursorIndex];
 						long left_p = 0;
 						long len = iterator.Count;
 
@@ -270,7 +273,7 @@ namespace Deveel.Data.Sql {
 				bool hasNext = ++position < Count;
 
 				if (hasNext) {
-					IIndexCursor cursor = cursors[cursorIndex];
+					IIndexCursor<RowId> cursor = cursors[cursorIndex];
 					if (!cursor.MoveNext()) {
 						// Set to before the first of the next cursor in the set
 						++cursorIndex;
@@ -291,14 +294,14 @@ namespace Deveel.Data.Sql {
 				get { return Current; }
 			}
 
-			public long Current {
+			public RowId Current {
 				get { return cursors[cursorIndex].Current; }
 			}
 
 			public bool MoveBack() {
 				bool hasPrev = --position > 0;
 				if (hasPrev) {
-					IIndexCursor cursor = cursors[cursorIndex];
+					IIndexCursor<RowId> cursor = cursors[cursorIndex];
 					if (!cursor.MoveBack()) {
 						// Set to after the end of the previous cursor in the set
 						--cursorIndex;
@@ -310,14 +313,14 @@ namespace Deveel.Data.Sql {
 				return hasPrev;
 			}
 
-			public long Remove() {
+			public RowId Remove() {
 				throw new NotSupportedException();
 			}
 
 			public object Clone() {
-				List<IIndexCursor> set_copy = new List<IIndexCursor>(cursors.Count);
-				foreach (IIndexCursor i in cursors) {
-					set_copy.Add((IIndexCursor) i.Clone());
+				List<IIndexCursor<RowId>> set_copy = new List<IIndexCursor<RowId>>(cursors.Count);
+				foreach (IIndexCursor<RowId> i in cursors) {
+					set_copy.Add((IIndexCursor<RowId>) i.Clone());
 				}
 				return new SubsetIndexCursor(set_copy);
 			}

@@ -1,97 +1,69 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
-	public sealed class FunctionResultTable : ITableDataSource {
+	public sealed class FunctionResultTable : ITable {
 		private readonly SqlObject[] values;
-		private readonly Column[] columns;
-		
+		private TableRow row;
+		private readonly ColumnCollection columns;
+
 		private static readonly TableName FunctionTableName = new TableName("@FunctionResult@");
 
 		public FunctionResultTable(SqlObject[] values) {
 			this.values = values;
-			
-			columns = new Column[values.Length];
-			for(int i = 0; i < values.Length; i++) {
-				columns[i] = new Column(new Variable(FunctionTableName, "column" + i), values[i].Type);
+
+			columns = new ColumnCollection(this);
+			for (int i = 0; i < values.Length; i++) {
+				columns.Add(new TableColumn(this, "column" + i, values[i].Type));
 			}
+			columns.MakeReadOnly();
 		}
 
 		void IDisposable.Dispose() {
 		}
-		
-		public TableName TableName {
-			get { return FunctionTableName; }
+
+		public IColumnCollection Columns {
+			get { return columns; }
 		}
 
 		public long RowCount {
 			get { return 1; }
 		}
-		
-		public int ColumnCount {
-			get { return columns.Length; }
+
+		public TableName Name {
+			get { return FunctionTableName;}
 		}
 
 		public IRowCursor GetRowCursor() {
-			return new SimpleRowCursor(RowCount);
+			return new SimpleRowCursor(1);
 		}
-		
-		public int GetColumnOffset(Variable name) {
-			for (int i = 0; i < columns.Length; i++) {
-				if (columns[i].Name.Equals(name))
-					return i;
+
+		public TableRow GetRow(RowId rowid) {
+			if (rowid.ToInt64() != 0)
+				throw new ArgumentOutOfRangeException("rowid");
+
+			if (row == null) {
+				row = new TableRow(this, new RowId(0));
+				for (int i = 0; i < columns.Count; i++)
+					row.SetValue(i, values[i]);
 			}
-			
-			return -1;
-		}
-		
-		public SqlType GetColumnType(int offset) {
-			return columns[offset].Type;
-		}
-		
-		public Variable GetColumnName(int offset) {
-			return columns[offset].Name;
+
+			return row;
 		}
 
-		public SqlObject GetValue(int column, long row) {
-			if (row > 0)
-				throw new ArgumentOutOfRangeException("row");
-
-			return values[column];
+		void ITable.PrefetchValue(int columnOffset, RowId rowid) {
 		}
 
-		void ITableDataSource.FetchValue(int column, long row) {
+		public SqlObject GetValue(int columnOffset, RowId rowid) {
+			if (rowid.ToInt64() != 0)
+				throw new ArgumentOutOfRangeException("rowid");
+
+			return values[columnOffset];
 		}
 
-		IEnumerator<long> IEnumerable<long>.GetEnumerator() {
-			return GetRowCursor();
+		public bool RowExists(RowId rowid) {
+			return rowid.ToInt64() == 0;
 		}
-
-		IEnumerator IEnumerable.GetEnumerator() {
-			return GetRowCursor();
-		}
-
-		#region Column
-		
-		class Column {
-			private readonly SqlType type;
-			private readonly Variable name;
-			
-			public Column(Variable name, SqlType type) {
-				this.name = name;
-				this.type = type;
-			}
-			
-			public Variable Name {
-				get { return name; }
-			}
-			
-			public SqlType Type {
-				get { return type; }
-			}
-		}
-		
-		#endregion
 	}
 }

@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 
 namespace Deveel.Data.Sql {
 	sealed class SimpleRowCursor : IRowCursor {
 		private long pos;
-		private long size;
+		private readonly long size;
 		
 		public SimpleRowCursor(long size) {
 			this.size = size;
@@ -20,8 +19,8 @@ namespace Deveel.Data.Sql {
 			get { return size; }
 		}
 		
-		public long Current {
-			get { return pos; }
+		public RowId Current {
+			get { return new RowId(pos); }
 		}
 		
 		object IEnumerator.Current {

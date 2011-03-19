@@ -1,22 +1,23 @@
 ﻿using System;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	class CollationIndexResolver : IndexResolver {
-		private ITableDataSource table;
-		private int[] columns;
+		private readonly ITable table;
+		private readonly int[] columns;
 
-		public CollationIndexResolver(ITableDataSource table, IndexCollation collation)
-			: base() {
+		public CollationIndexResolver(ITable table, IndexCollation collation) {
 			this.table = table;
 			// Resolve the column names in the table into index references
 			int sz = collation.Columns.Length;
 			columns = new int[sz];
 
-			TableName tname = table.TableName;
+			TableName tname = table.Name;
 
 			for (int i = 0; i < sz; ++i) {
 				string colName = collation.Columns[i].ColumnName;
-				int colOffset = table.GetColumnOffset(new Variable(tname, colName));
+				int colOffset = table.Columns.IndexOf(colName);
 				if (colOffset == -1)
 					throw new ApplicationException("Column '" + colName + "' not found.");
 				
@@ -26,7 +27,7 @@ namespace Deveel.Data.Sql {
 			// TODO: handle function indexes
 		}
 
-		public override SqlObject[] GetValue(long rowid) {
+		public override SqlObject[] GetValue(RowId rowid) {
 			SqlObject[] values;
 			if (columns.Length == 1) {
 				// Single value
@@ -41,6 +42,5 @@ namespace Deveel.Data.Sql {
 			}
 			return values;
 		}
-
 	}
 }

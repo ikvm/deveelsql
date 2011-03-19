@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Text;
 
+using Deveel.Data.Sql.State;
 using Deveel.Math;
 
 namespace Deveel.Data.Sql {
@@ -79,7 +80,7 @@ namespace Deveel.Data.Sql {
 			return ob.IsNull ? ob : new SqlObject(ob.Value.ToNumber().Sqrt());
 		}
 
-		public static ITableDataSource Least(QueryProcessor processor, Expression[] args) {
+		public static ITable Least(QueryProcessor processor, Expression[] args) {
 			SqlObject least = null;
 			for (int i = 0; i < args.Length; ++i) {
 				SqlObject ob = QueryProcessor.Result(processor.Execute(args[i]))[0];
@@ -93,7 +94,7 @@ namespace Deveel.Data.Sql {
 			return QueryProcessor.ResultTable(least);
 		}
 
-		public static ITableDataSource Greatest(QueryProcessor processor, Expression[] args) {
+		public static ITable Greatest(QueryProcessor processor, Expression[] args) {
 			SqlObject most = null;
 			for (int i = 0; i < args.Length; ++i) {
 				SqlObject ob = QueryProcessor.Result(processor.Execute(args[i]))[0];
@@ -157,7 +158,7 @@ namespace Deveel.Data.Sql {
 		}
 
 
-		public static ITableDataSource Length(QueryProcessor processor, Expression[] args) {
+		public static ITable Length(QueryProcessor processor, Expression[] args) {
 			if (args.Length != 1)
 				throw new ArgumentException("The function LENGTH accepts only 1 argument.");
 
@@ -190,11 +191,11 @@ namespace Deveel.Data.Sql {
 			return QueryProcessor.ResultTable(resultLength);
 		}
 
-		public static ITableDataSource CharLength(QueryProcessor processor, Expression[] args) {
+		public static ITable CharLength(QueryProcessor processor, Expression[] args) {
 			return Length(processor, args);
 		}
 
-		public static ITableDataSource BitLength(QueryProcessor processor, Expression[] args) {
+		public static ITable BitLength(QueryProcessor processor, Expression[] args) {
 			SqlObject ob = QueryProcessor.Result(Length(processor, args))[0];
 			SqlObject eight = new SqlObject(8L);
 			return QueryProcessor.ResultTable(Add(new SqlObject[] { ob, eight }));
@@ -321,7 +322,7 @@ namespace Deveel.Data.Sql {
 			return new SqlObject(str.Substring(arg1 - 1, ((arg1 + arg2) - 1) - (arg1 - 1)));
 		}
 
-		public static ITableDataSource If(QueryProcessor processor, Expression[] args) {
+		public static ITable If(QueryProcessor processor, Expression[] args) {
 			SqlObject[] conditional = QueryProcessor.Result(processor.Execute(args[0]));
 			// If it evaluated to true,
 			bool? b = conditional[0].Value.ToBoolean();

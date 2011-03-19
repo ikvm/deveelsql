@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	class QueryPlanner {
 		private readonly SystemTransaction transaction;
@@ -115,10 +117,10 @@ namespace Deveel.Data.Sql {
 			list.Add(graph);
 		}
 
-		private ITableDataSource FetchTable(Expression op, TableName tname) {
+		private ITable FetchTable(Expression op, TableName tname) {
 			if (op is JoinExpression) {
 				JoinExpression joinExp = (JoinExpression) op;
-				ITableDataSource table = FetchTable(joinExp.Left, tname);
+				ITable table = FetchTable(joinExp.Left, tname);
 				if (table != null) 
 					return table;
 				return FetchTable(joinExp.Right, tname);
@@ -397,7 +399,7 @@ namespace Deveel.Data.Sql {
 				string functionName = functionExp.Name;
 				if (IsSimpleEvaluable(functionName)) {
 					// Evaluate the simple function and return the result
-					ITableDataSource result = transaction.FunctionManager.Evaluate(functionName, simpleProcessor, functionArgs);
+					ITable result = transaction.FunctionManager.Evaluate(functionName, simpleProcessor, functionArgs);
 					return QueryProcessor.Result(result);
 				}
 					
@@ -415,10 +417,10 @@ namespace Deveel.Data.Sql {
 				// Get the table name
 				TableName tname = var.TableName;
 				// Get the TableDataSource for this table,
-				ITableDataSource table_source = FetchTable(joinGraph, tname);
-				if (table_source != null) {
+				ITable tableSource = FetchTable(joinGraph, tname);
+				if (tableSource != null) {
 					// Get the list of indexes defined on this table,
-					TableName index_tname = table_source.TableName;
+					TableName index_tname = tableSource.Name;
 					IIndexSetDataSource[] indexes = transaction.GetTableIndexes(index_tname);
 					foreach (IIndexSetDataSource ind in indexes) {
 						IndexCollation collation = ind.Collation;
@@ -473,7 +475,7 @@ namespace Deveel.Data.Sql {
 							// If the collation of the composite is descending, then we can't
 							// represent it as a composite index,
 							SqlObject tv = (SqlObject)functionExp.Parameters[(i * 2) + 1];
-							if (!tv.Value.ToBoolean().Value) {
+							if (!tv.Value.ToBoolean().GetValueOrDefault()) {
 								valid = false;
 								break;
 							}
@@ -499,10 +501,10 @@ namespace Deveel.Data.Sql {
 						// If the composite meets the indexable requirement look for an
 						// index,
 						if (valid) {
-							ITableDataSource tableSource = FetchTable(joinGraph, tname);
+							ITable tableSource = FetchTable(joinGraph, tname);
 							if (tableSource != null) {
 								// Get the list of indexes defined on this table,
-								TableName indexTableName = tableSource.TableName;
+								TableName indexTableName = tableSource.Name;
 								IIndexSetDataSource[] indexes = transaction.GetTableIndexes(indexTableName);
 								foreach (IIndexSetDataSource ind in indexes) {
 									IndexCollation collation = ind.Collation;

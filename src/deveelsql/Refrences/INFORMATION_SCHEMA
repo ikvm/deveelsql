@@ -1,0 +1,97 @@
+﻿***************************************************
+*                                                 *
+*                 System Tables                   *
+*                                                 *
+***************************************************
+
+
+SCHEMATA
+--------------------------------------------------
+CATALOG               VARCHAR NOT NULL
+SCHEMA                VARCHAR NOT NULL
+DEFAULT_COLLATION     VARCHAR NULL
+
+INDEX:
+  NAME_IDX(SCHEMA)
+  CATALOG_IDX(CATALOG)
+--------------------------------------------------
+
+TABLES
+--------------------------------------------------
+CATALOG               VARCHAR NOT NULL
+SCHEMA                VARCHAR NOT NULL
+NAME                  VARCHAR NOT NULL
+TYPE                  VARCHAR NOT NULL
+CREATE_DATE           DATETIME NULL
+ALTER_DATE            DATETIME NULL
+
+INDEX:
+  SCHEMA_IDX(SCHEMA)
+  NAME_IDX(NAME)
+  COMPOSITE_NAME_IDX(SCHEMA, NAME)
+  TYPE_IDX(TYPE)
+--------------------------------------------------
+
+TABLE_COLUMNS
+--------------------------------------------------
+CATALOG               VARCHAR NOT NULL
+SCHEMA                VARCHAR NOT NULL
+NAME                  VARCHAR NOT NULL
+COLUMN_NAME           VARCHAR NOT NULL
+SEQ_NO                NUMERIC NOT NULL
+NULLABLE              BOOLEAN NOT NULL
+DATA_TYPE             VARCHAR NOT NULL
+CHAR_MAX_LENGTH       NUMERIC NULL
+NUMERIC_PRECISION     NUMERIC NULL
+NUMERIC_SCALE         NUMERIC NULL
+STRING_LOCALE         VARCHAR NULL
+
+INDEX:
+  COMPOSITE_NAME_IDX(SCHEMA, NAME, COLUMN_NAME)
+  TABLE_NAME_IDX(SCHEMA, NAME)
+--------------------------------------------------
+
+TABLE_INDEXES
+--------------------------------------------------
+CATALOG               VARCHAR NOT NULL
+SCHEMA                VARCHAR NOT NULL
+NAME                  VARCHAR NOT NULL
+INDEX_NAME            VARCHAR NOT NULL
+TYPE                  VARCHAR NULL
+COLLATION_FUNCTION    VARCHAR NULL
+COLLATION_TYPE        VARCHAR NULL
+
+INDEX:
+  COMPOSITE_NAME_IDX(SCHEMA, NAME)
+  INDEX_COMPOSITE_NAME_IDX(SCHEMA, NAME, INDEX_NAME)
+--------------------------------------------------
+
+TABLE_INDEX_COLUMNS
+--------------------------------------------------
+CATALOG               VARCHAR NOT NULL
+SCHEMA                VARCHAR NOT NULL
+NAME                  VARCHAR NOT NULL
+INDEX_NAME            VARCHAR NOT NULL
+COLUMN_NAME           VARCHAR NOT NULL
+ORDINAL_POSITION      NUMERIC NOT NULL
+ASCENDING             BOOLEAN NULL
+
+INDEX:
+  COMPOSITE_NAME_IDX(SCHEMA, NAME, INDEX_NAME)
+--------------------------------------------------
+
+TABLE_CONSTRAINTS
+--------------------------------------------------
+TABLE_CATALOG         VARCHAR NOT NULL
+TABLE_SCHEMA          VARCHAR NOT NULL
+TABLE_NAME            VARCHAR NOT NULL
+CONSTRAINT_NAME       VARCHAR NOT NULL
+
+--------------------------------------------------
+
+
+***************************************************
+*                                                 *
+*                Standard Views                   *
+*                                                 *
+***************************************************

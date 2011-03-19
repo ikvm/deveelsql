@@ -131,7 +131,7 @@ namespace Deveel.Data.Sql {
 						// Look for the multi-column index
 						IndexKey idxKey = FindIndexOn(rightVarExps, right);
 						TableName rightIndexTableName = idxKey.IndexTable;
-						TableName rightIndexName = idxKey.IndexName;
+						string rightIndexName = idxKey.IndexName;
 
 						// If there are none and this is multi-column, we try and pick the
 						// first index (this is not really a very good heuristic).  The

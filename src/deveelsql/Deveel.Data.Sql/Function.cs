@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Reflection;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	public sealed class Function : ILineInfo {
 		private string name;
@@ -111,7 +113,7 @@ namespace Deveel.Data.Sql {
 			// If single element,
 			int sz = parameters.Count;
 			if (sz == 1) {
-				FunctionParameter param = this.parameters[0];
+				FunctionParameter param = parameters[0];
 				string elem_ref = param.Reference;
 				// Return all the expressions if refs match
 				if (elem_ref.Equals(reference)) {
@@ -140,7 +142,7 @@ namespace Deveel.Data.Sql {
 				if (i < sz) {
 					i = sz - 1;
 					for (; i >= 0; i--) {
-						FunctionParameter param = this.parameters[i];
+						FunctionParameter param = parameters[i];
 						string elem_ref = param.Reference;
 						FunctionParameterMatch t = param.Match;
 						if (t != FunctionParameterMatch.Exact) {
@@ -159,7 +161,7 @@ namespace Deveel.Data.Sql {
 		private static readonly Type[] AggregateMethodParams = {
 		                                                    	typeof(QueryProcessor), 
 																typeof(bool), 
-																typeof(ITableDataSource),
+																typeof(ITable),
 		                                                    	typeof(Expression[])
 		                                                    };
 
@@ -167,7 +169,7 @@ namespace Deveel.Data.Sql {
 		                                                      	typeof(string), 
 																typeof(QueryProcessor), 
 																typeof(bool),
-		                                                      	typeof(ITableDataSource),
+		                                                      	typeof(ITable),
 		                                                      	typeof(Expression[])
 		                                                      };
 
@@ -183,7 +185,7 @@ namespace Deveel.Data.Sql {
 				// Get the spec if it's there,
 				MethodInfo m = declaringType.GetMethod(methodName, AggregateMethodParams);
 				if (m != null) {
-					if (!m.ReturnType.IsAssignableFrom(typeof(ITableDataSource))) {
+					if (!m.ReturnType.IsAssignableFrom(typeof(ITable))) {
 						throw new ApplicationException("Method " + methodName + " needs return type of ITable");
 					}
 					methods.Add(m);
@@ -194,7 +196,7 @@ namespace Deveel.Data.Sql {
 				if (methods.Count == 0) {
 					m = declaringType.GetMethod("AggregateStandard", AggregateStandardParams);
 					if (m != null) {
-						if (!m.ReturnType.IsAssignableFrom(typeof(ITableDataSource))) {
+						if (!m.ReturnType.IsAssignableFrom(typeof(ITable))) {
 							throw new ApplicationException("Method " + methodName + " needs return type of ITable");
 						}
 						methods.Add(m);
@@ -207,7 +209,7 @@ namespace Deveel.Data.Sql {
 				                                       BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null,
 				                                       FunctionMethodParams, null);
 				if (m != null) {
-					if (!typeof(ITableDataSource).IsAssignableFrom(m.ReturnType))
+					if (!typeof(ITable).IsAssignableFrom(m.ReturnType))
 						throw new ApplicationException("Method " + methodName + " needs return type of ITable");
 
 					methods.Add(m);
@@ -227,7 +229,7 @@ namespace Deveel.Data.Sql {
 				if (methods.Count == 0) {
 					m = declaringType.GetMethod("FunctionStandard", FunctionStandardParams);
 					if (m != null) {
-						if (!typeof(ITableDataSource).IsAssignableFrom(m.ReturnType)) {
+						if (!typeof(ITable).IsAssignableFrom(m.ReturnType)) {
 							throw new ApplicationException("Method " + methodName +" needs return type of ITable");
 						}
 						methods.Add(m);
@@ -259,14 +261,14 @@ namespace Deveel.Data.Sql {
 			SetEvaluationContext(declaringType, name);
 		}
 		
-		public ITableDataSource EvaluateAggregate(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public ITable EvaluateAggregate(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			if (evalContext == null)
 				throw new InvalidOperationException("Evaluation context was not set");
 			
 			return evalContext.EvaluateAggregate(processor, distinct, group, args);
 		}
 		
-		public ITableDataSource Evaluate(QueryProcessor processor, Expression[] args) {
+		public ITable Evaluate(QueryProcessor processor, Expression[] args) {
 			if (evalContext == null)
 				throw new InvalidOperationException("Evaluation context was not set");
 			

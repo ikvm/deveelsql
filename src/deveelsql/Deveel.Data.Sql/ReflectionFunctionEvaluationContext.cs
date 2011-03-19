@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Reflection;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	class ReflectionFunctionEvaluationContext : IFunctionEvaluationContext {
 		private readonly Function function;
@@ -13,7 +15,7 @@ namespace Deveel.Data.Sql {
 			this.method = method;
 		}
 
-		public ITableDataSource EvaluateAggregate(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public ITable EvaluateAggregate(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			if (!function.IsAggregate)
 				throw new InvalidOperationException("The function is not an aggregate.");
 
@@ -30,7 +32,7 @@ namespace Deveel.Data.Sql {
 					throw new ApplicationException("Unknown invoke type");
 				}
 
-				return (ITableDataSource)method.Invoke(null, funArgs);
+				return (ITable)method.Invoke(null, funArgs);
 			} catch (MethodAccessException e) {
 				throw new ApplicationException(e.Message, e);
 			} catch (TargetInvocationException e) {
@@ -38,7 +40,7 @@ namespace Deveel.Data.Sql {
 			}
 		}
 
-		public ITableDataSource Evaluate(QueryProcessor processor, Expression[] args) {
+		public ITable Evaluate(QueryProcessor processor, Expression[] args) {
 			// 'CAST' is a special case,
 			if (function.Name.Equals("@cast")) {
 				// Get the value to cast, and the type to cast it to,
@@ -62,12 +64,12 @@ namespace Deveel.Data.Sql {
 				// Execute it
 				if (invokeType == 6) {
 					object[] funArgs = { function.Name, processor, args };
-					return (ITableDataSource)method.Invoke(null, funArgs);
+					return (ITable)method.Invoke(null, funArgs);
 				}
 					// The QueryProcessor, Expression[] construct
 				if (invokeType == 1) {
 					object[] funArgs = { processor, args };
-					return (ITableDataSource)method.Invoke(null, funArgs);
+					return (ITable)method.Invoke(null, funArgs);
 				}
 					// The SqlObject construct
 				if (invokeType == 2) {

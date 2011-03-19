@@ -1,10 +1,11 @@
 ﻿using System;
 
 using Deveel.Data.Base;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
 	public sealed partial class QueryProcessor {
-		private ITableDataSource Filter(ITableDataSource table, FilterExpression op) {
+		private ITable Filter(ITable table, FilterExpression op) {
 			// The filter name
 			string filter_name = op.Name;
 			if (filter_name.Equals("single_filter"))
@@ -22,7 +23,7 @@ namespace Deveel.Data.Sql {
 		}
 
 		
-		private static Expression GetTableOrderComposite(ITableDataSource table) {
+		private static Expression GetTableOrderComposite(ITable table) {
 			if (table is FilteredTable)
 				return ((FilteredTable)table).OrderComposite;
 			if (table is JoinedTableBase)
@@ -30,10 +31,10 @@ namespace Deveel.Data.Sql {
 				
 			return null;
 		}
-		
-		private ITableDataSource FilterByScan(ITableDataSource table, Expression op) {
+
+		internal ITable FilterByScan(ITable table, Expression op) {
 			// Default is to match table,
-			ITableDataSource resultTable = table;
+			ITable resultTable = table;
 
 			long rowCount = table.RowCount;
 
@@ -43,7 +44,7 @@ namespace Deveel.Data.Sql {
 				PushTable(table);
 
 				// The working set,
-				IIndex workingSet = transaction.CreateTemporaryIndex(rowCount);
+				IIndex<RowId> workingSet = transaction.CreateTemporaryIndex<RowId>(rowCount);
 
 				// TODO: Common expression scans should be optimized
 
@@ -59,12 +60,12 @@ namespace Deveel.Data.Sql {
 				// For each value,
 				while (cursor.MoveNext()) {
 					// Fetch the next row_id from the iterator
-					long rowid = cursor.Current;
+					RowId rowid = cursor.Current;
 					// Set the top of stack table row_id
 					UpdateTableRow(rowid);
 					
 					// Execute the expression,
-					ITableDataSource expResult = DoExecute(op);
+					ITable expResult = DoExecute(op);
 					// If it's true, add the row_id to the working set
 					
 					if (TrueResult(expResult)) {
@@ -108,7 +109,7 @@ namespace Deveel.Data.Sql {
 			return resultTable;
 		}
 		
-		private SubsetTable FilterByIndex(ITableDataSource table, IIndexSetDataSource index, Expression order, SelectableRange range) {
+		private SubsetTable FilterByIndex(ITable table, IIndexSetDataSource index, Expression order, SelectableRange range) {
 			// Select from the index and return the subset
 			IRowCursor rows = index.Select(range);
 			SubsetTable filteredTable = new SubsetTable(table, rows);
@@ -130,7 +131,7 @@ namespace Deveel.Data.Sql {
 			return filteredTable;
 		}
 
-		private ITableDataSource FilterByIndex(ITableDataSource table, IIndexSetDataSource index, Expression order, string compareFunction, SqlObject[] values) {
+		private ITable FilterByIndex(ITable table, IIndexSetDataSource index, Expression order, string compareFunction, SqlObject[] values) {
 			// Make a selectable range set
 			SelectableRange range = SelectableRange.Full;
 			range = range.Intersect(SelectableRange.GetOperatorFromFunction(compareFunction), values);
@@ -138,11 +139,11 @@ namespace Deveel.Data.Sql {
 			return FilterByIndex(table, index, order, range);
 		}
 
-		private ITableDataSource FilterByIndex(ITableDataSource table, IIndexSetDataSource index, Expression order, string compareFunction, SqlObject value) {
+		private ITable FilterByIndex(ITable table, IIndexSetDataSource index, Expression order, string compareFunction, SqlObject value) {
 			return FilterByIndex(table, index, order, compareFunction, new SqlObject[] { value });
 		}
 		
-		private ITableDataSource StaticFilter(ITableDataSource child, FilterExpression expression) {
+		private ITable StaticFilter(ITable child, FilterExpression expression) {
 			// The filter operation
 			Expression filterExp = expression.Filter;
 			// Execute the static expression
@@ -155,14 +156,14 @@ namespace Deveel.Data.Sql {
 			return new SubsetTable(child);
 		}
 		
-		private ITableDataSource AggregateFilter(ITableDataSource child, FilterExpression expression) {
+		private ITable AggregateFilter(ITable child, FilterExpression expression) {
 			// The filter operation
 			FunctionExpression filterExp = (FunctionExpression) expression.Filter;
 			// The filter operation is the sort composite
 			AggregateTable aggregate = new AggregateTable(child, filterExp);
 			// Create an empty index for the aggregate table and initialize
 			// Note: Time cost of this is a scan on 'child'
-			IIndex emptyIndexContainer = transaction.CreateTemporaryIndex(System.Math.Max(2, child.RowCount * 2));
+			IIndex<long> emptyIndexContainer = transaction.CreateTemporaryIndex<long>(System.Math.Max(2, child.RowCount * 2));
 			aggregate.InitGroups(this, emptyIndexContainer);
 			// Set the order composite
 			aggregate.SetOrderCompositeIsChild();
@@ -170,13 +171,13 @@ namespace Deveel.Data.Sql {
 			return aggregate;
 		}
 		
-		private ITableDataSource SortFilter(ITableDataSource table, FilterExpression expression) {
+		private ITable SortFilter(ITable table, FilterExpression expression) {
 			// The filter operation which is a function that describes the sort terms
 			Expression filterExp = expression.Filter;
 			if (!(filterExp is FunctionExpression))
 				throw new ArgumentException("Expected a function as argument to the filter.");
 
-			ITableDataSource resultTable = table;
+			ITable resultTable = table;
 
 			// If there's something to sort,
 			if (table.RowCount > 1) {
@@ -205,14 +206,14 @@ namespace Deveel.Data.Sql {
 					Expression sortExp = (Expression) compositeExp.Parameters[0];
 					naturalOrder = SqlObject.Equals((SqlObject)compositeExp.Parameters[1], SqlObject.True);
 					// Get the index candidate
-					TableName indexName = sortExp.IndexCandidate;
+					string indexName = sortExp.IndexCandidate;
 					TableName indexTableName = sortExp.IndexTableName;
 					// Index available?
 					rowIndex = GetIndex(table, indexName);
 				} else {
 					// Multiple terms,
 					// Get the index candidate if there is one
-					TableName indexName = compositeExp.IndexCandidate;
+					string indexName = compositeExp.IndexCandidate;
 					TableName indexTableame = compositeExp.IndexTableName;
 					// Index available?
 					rowIndex = GetIndex(table, indexName);
@@ -240,7 +241,7 @@ namespace Deveel.Data.Sql {
 
 					// Scan sort,
 					// The working set,
-					IIndex workingSet = transaction.CreateTemporaryIndex(table.RowCount);
+					IIndex<RowId> workingSet = transaction.CreateTemporaryIndex<RowId>(table.RowCount);
 					// Create the resolver
 					IndexResolver resolver = CreateResolver(table, compositeExp);
 					// Iterator over the source table
@@ -250,7 +251,7 @@ namespace Deveel.Data.Sql {
 					tableCursor = new PrefetchRowCursor(tableCursor, table);
 
 					// Use a buffer,
-					long[] rowIds = new long[128];
+					RowId[] rowIds = new RowId[128];
 					while (tableCursor.MoveNext()) {
 						int count = 0;
 						while (tableCursor.MoveNext() && count < 128) {
@@ -258,7 +259,7 @@ namespace Deveel.Data.Sql {
 							++count;
 						}
 						for (int i = 0; i < count; ++i) {
-							long rowid = rowIds[i];
+							RowId rowid = rowIds[i];
 							// Get the value,
 							SqlObject[] values = resolver.GetValue(rowid);
 							// Insert the record into sorted order in the working_set
@@ -282,7 +283,7 @@ namespace Deveel.Data.Sql {
 			return resultTable;
 		}
 		
-		private ITableDataSource ExpressionTableFilter(ITableDataSource table, FilterExpression op) {
+		private ITable ExpressionTableFilter(ITable table, FilterExpression op) {
 			// The filter operation which is a function that describes the output
 			// columns
 			Expression filterExp = op.Filter;
@@ -324,7 +325,7 @@ namespace Deveel.Data.Sql {
 			return expressionTable;
 		}
 		
-		private ITableDataSource SingleFilter(ITableDataSource table, FilterExpression expression) {
+		private ITable SingleFilter(ITable table, FilterExpression expression) {
 			// The filter operation
 			Expression filterExp = expression.Filter;
 
@@ -340,7 +341,7 @@ namespace Deveel.Data.Sql {
 					SelectableRange rangeSet = (SelectableRange) functionExp.Parameters[1];
 					// Is the var an index candidate?
 					TableName indexTname = varExp.IndexTableName;
-					TableName indexName = varExp.IndexCandidate;
+					string indexName = varExp.IndexCandidate;
 
 					if (indexName != null) {
 						// Try and get this index in the parent
@@ -385,7 +386,7 @@ namespace Deveel.Data.Sql {
 						// Did we find an expression that is eligible?
 						if (comparison != null) {
 							// If the var_op is an index candidate.
-							TableName indexName = var_op.IndexCandidate;
+							string indexName = var_op.IndexCandidate;
 							TableName indexTableName = var_op.IndexTableName;
 							if (indexName != null) {
 								// We have an index,
@@ -395,10 +396,10 @@ namespace Deveel.Data.Sql {
 									// Is the static locally static?
 									if (IsLocallyStatic(table, static_op)) {
 										// Resolve the static,
-										ITableDataSource staticResult = DoExecute(static_op);
+										ITable staticResult = DoExecute(static_op);
 										// Assert we have 1 column and 1 row
 										if (staticResult.RowCount != 1 &&
-											staticResult.ColumnCount != 1)
+											staticResult.Columns.Count != 1)
 											throw new ApplicationException("Static operation gave incorrectly formatted result");
 
 										// Get the value
@@ -406,7 +407,7 @@ namespace Deveel.Data.Sql {
 										if (!rowCursor.MoveNext())
 											throw new ApplicationException();
 
-										long rowId = rowCursor.Current;
+										RowId rowId = rowCursor.Current;
 										SqlObject staticVal = staticResult.GetValue(0, rowId);
 										// The order composite
 										Expression orderComposite = expression.OrderRequired;
@@ -445,7 +446,7 @@ namespace Deveel.Data.Sql {
 			return FilterByScan(table, filterExp);
 		}
 
-		private static bool IsLocallyStatic(ITableDataSource domain_table, Expression op) {
+		private static bool IsLocallyStatic(ITable domain_table, Expression op) {
 			LocalStaticGraphInspector local_static_test = new LocalStaticGraphInspector(domain_table);
 			QueryOptimizer.WalkGraph(op, local_static_test);
 			return local_static_test.Result;
@@ -454,10 +455,10 @@ namespace Deveel.Data.Sql {
 		#region LocalStaticGraphInspector
 
 		private class LocalStaticGraphInspector : QueryOptimizer.IGraphInspector {
-			private readonly ITableDataSource domainTable;
+			private readonly ITable domainTable;
 			private bool result;
 
-			public LocalStaticGraphInspector(ITableDataSource domainTable) {
+			public LocalStaticGraphInspector(ITable domainTable) {
 				this.domainTable = domainTable;
 			}
 
@@ -470,7 +471,7 @@ namespace Deveel.Data.Sql {
 					Variable v = ((FetchVariableExpression)expression).Variable;
 					// If this variable references a table in the domain, we aren't
 					// locally static,
-					if (domainTable.GetColumnOffset(v) == -1)
+					if (domainTable.Columns.IndexOf(v.Name) == -1)
 						result = false;
 				}
 				return expression;

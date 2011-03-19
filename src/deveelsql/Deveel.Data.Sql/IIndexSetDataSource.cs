@@ -4,7 +4,7 @@ namespace Deveel.Data.Sql {
 	public interface IIndexSetDataSource : IDisposable {
 		TableName SourceTableName { get; }
 		
-		TableName Name { get; }
+		string Name { get; }
 		
 		IndexCollation Collation { get; }
 		
@@ -13,8 +13,8 @@ namespace Deveel.Data.Sql {
 		 
 		 void Clear();
 		 
-		 void Insert(long rowid);
+		 void Insert(RowId rowid);
 		 
-		 void Remove(long rowid);
+		 void Remove(RowId rowid);
 	}
 }

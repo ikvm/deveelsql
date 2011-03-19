@@ -36,7 +36,7 @@ namespace Deveel.Data.Sql {
 			// If child has an index we can use for the sort or is already
 			// sorted by the filter terms, we don't need to incur the cost of the
 			// sort.
-			TableName indexName;
+			string indexName;
 			TableName indexTableName;
 
 			// The filter operation
@@ -105,7 +105,8 @@ namespace Deveel.Data.Sql {
 
 			// We can work out an estimate of the time cost now,
 			bool indexApplicable = false;
-			TableName indexName = null;
+			string indexName = null;
+			TableName tableName = null;
 			Expression compositeIndexExp = null;
 
 			// Fetch the first table to which index information is applicable
@@ -140,6 +141,7 @@ namespace Deveel.Data.Sql {
 					}
 					if (varExp != null) {
 						indexName = varExp.IndexCandidate;
+						tableName = varExp.IndexTableName;
 						if (indexName != null) {
 							indexApplicable = true;
 							// Set the indexed ops field, which is an array of operations
@@ -178,7 +180,7 @@ namespace Deveel.Data.Sql {
 				long? resultSize = (long?)filter.GetArgument("result_size_lookup");
 				if (resultSize == null) {
 					// Fetch the index on the table
-					IIndexSetDataSource rowIndex = transaction.GetIndex(indexName);
+					IIndexSetDataSource rowIndex = transaction.GetIndex(tableName, indexName);
 					// Do the index lookup and cost appropriately
 					IRowCursor result = rowIndex.Select(rangeSet);
 
@@ -269,11 +271,12 @@ namespace Deveel.Data.Sql {
 						double probability;
 						// If the var is an index candidate,
 						indexName = varExp.IndexCandidate;
+						tableName = varExp.IndexTableName;
 
 						if (indexName != null) {
 							// There's an index we can use!
 							// Fetch the index on the table
-							IIndexSetDataSource rowIndex = transaction.GetIndex(indexName);
+							IIndexSetDataSource rowIndex = transaction.GetIndex(tableName, indexName);
 							// Have we done a size estimate already on this filter?
 							long? resultSize = (long?)filter.GetArgument("result_size_lookup");
 							if (resultSize == null) {

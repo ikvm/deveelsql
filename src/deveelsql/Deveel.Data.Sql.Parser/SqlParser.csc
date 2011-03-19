@@ -384,16 +384,275 @@ TOKEN : {
 	| <QUOTED_VARIABLE:   "\"" ( ~["\""] )* "\"" >
 }
 
+IList<Expression> Statements() :
+{ List<Expression> statements = new List<Expression>();
+  Expression exp;
+}
+{  exp = Statement() { statements.Add(exp); }
+      ( exp = Statement() { statements.Add(exp); } )*
+  { return statements.ToArray(); }
+}
+
 Expression Statement() :
 { Expression exp;
 }
 { (   exp = SelectStatement()
+    | LOOKAHEAD(3) exp = CreateTableStatement()
     | exp = ExplainStatement()
+	
+	| exp = SetStatement()
   )
 
   ( ";" | <EOF> )
 
   { return exp; }
+}
+
+// ---------- Create Table statement ----------
+
+Expression CreateTableStatement() :
+{ FunctionExpression exp = new FunctionExpression("create_table");
+  Token t;
+  Expression declarations;
+  Token tableName;
+}
+{  t=<CREATE> [<TEMPORARY> { exp.SetArgument("temporary", true); } ]
+   <TABLE> [LOOKAHEAD(1) <IF> <NOT> <EXISTS> { exp.SetArgument("if_not_exists", true); } ]
+   tableName = TableName()
+   "(" declarations = CreateTableDeclarations() ")"
+
+  { exp.Parameters.Add(FetchTable(Util.ParseTableName(tableName)));
+    exp.Parameters.Add(declarations);
+    exp.Line = t.beginLine;
+	exp.Column = t.beginColumn;
+    return exp; }
+}
+
+Expression CreateTableDeclarations() :
+{ FunctionExpression exp = new FunctionExpression("table_declarations");
+  Expression dec;
+}
+{  dec = CreateTableDeclaration() { exp.Parameters.Add(dec); }
+     ( "," dec = CreateTableDeclaration() { exp.Parameters.Add(dec); } )*
+
+  { return exp; }
+}
+
+FunctionExpression CreateTableDeclaration() :
+{ FunctionExpression exp; }
+{ (   exp = ColumnDeclaration()
+    | exp = ConstraintDeclaration()
+  )
+  { return exp; }
+}
+
+Expression ColumnDefaultExprDeclaration() :
+{ Token preToken = token;
+  Expression defaultExp;
+}
+{  <SQLDEFAULT> defaultExp = Expression()
+
+  { string source = Util.MakeSourceString(preToken, token);
+    defaultExp.SetArgument("source", source);
+    return defaultExp;
+  }
+}
+
+// This is a column declaration in a create table statement.
+// eg. "part_count NUMERIC DEFAULT 0 NOT NULL"
+FunctionExpression ColumnDeclaration() :
+{ FunctionExpression exp = new FunctionExpression("column_declaration");
+  Expression defaultExp = null, constraintExp = null;
+  Token columnName;
+  SqlType type;
+  bool unique = false;
+}
+{  columnName = VariableReference()  { exp.Parameters.Add(FetchVariable(columnName)); }
+   type = GetSqlType()              { exp.Parameters.Add(type); }
+
+    [ ( constraintExp = NullabilityConstraint()
+          [ defaultExp = ColumnDefaultExprDeclaration() ] )
+      |
+      ( defaultExp = ColumnDefaultExprDeclaration()
+          [ constraintExp = NullabilityConstraint() ] )
+    ]
+
+    [ <UNIQUE> { unique = true; } ]
+
+  { if (defaultExp != null) {
+      exp.SetArgument("has_default_exp", true);
+      exp.Parameters.Add(defaultExp);
+    }
+    if (constraintExp != null)
+      exp.Parameters.Add(constraintExp);
+    if (unique == true)
+      exp.Parameters.Add(FetchStatic(new SqlObject("UNIQUE")));
+
+    return exp; }
+}
+
+// Nullability constraint
+Expression NullabilityConstraint() :
+{ string constraint; }
+{
+   (   <NOT> <NULL_LITERAL>  { constraint = "NOT NULL"; }
+     | <NULL_LITERAL>        { constraint = "NULL"; }
+   )
+   { return FetchStatic(new SqlObject(constraint)); }
+}
+
+
+// The function/column ordering collation
+FunctionExpression OrderFunction() :
+{ FunctionExpression exp = new FunctionExpression("order_function");
+  Expression expr;
+  Token desc = null;
+}
+{   expr = Expression() [ <ASC> | desc=<DESC> ]
+  { exp.Parameters.Add(expr);
+    exp.Parameters.Add(FetchStatic((desc == null ? "ASC" : "DESC")));
+    return exp; }
+}
+
+
+
+// A basic fetch variable column composite
+FunctionExpression BasicColumnComposite() :
+{ FunctionExpression exp = new FunctionExpression("basic_var_list");
+  Token columnName;
+}
+{       columnName = VariableReference()
+               { exp.Parameters.Add(FetchVariable(columnName)); }
+  ( "," columnName = VariableReference()
+               { exp.Parameters.Add(FetchVariable(columnName)); } )*
+
+  { return exp; }
+}
+
+string ReferentialTrigger() :
+{ string trigger;
+}
+{
+  (   <NO> <ACTION>                     { trigger="NO ACTION"; }
+    | <RESTRICT>                        { trigger="NO ACTION"; }
+    | <CASCADE>                         { trigger="CASCADE"; }
+    | LOOKAHEAD(2) <SET> <NULL_LITERAL> { trigger="SET NULL"; }
+    | <SET> <SQLDEFAULT>                { trigger="SET DEFAULT"; }
+  )
+
+  { return trigger; }
+}
+
+FunctionExpression PrimaryKeyConstraint() :
+{ FunctionExpression exp = new FunctionExpression("constraint_primary_key");
+  Expression columnList;
+}
+{  <PRIMARY> <KEY> "(" columnList = BasicColumnComposite() ")"
+  { exp.Parameters.Add(columnList);
+    return exp; }
+}
+
+FunctionExpression UniqueConstraint() :
+{ FunctionExpression exp = new FunctionExpression("constraint_unique");
+  Expression columnList;
+}
+{  <UNIQUE> "(" columnList = BasicColumnComposite() ")"
+  { exp.Parameters.Add(columnList);
+    return exp; }
+}
+
+FunctionExpression CheckConstraint() :
+{ FunctionExpression exp = new FunctionExpression("constraint_check");
+  Expression checkExp;
+  Token preToken = token;
+}
+{  <CHECK> "(" checkExp = Expression() ")"
+  { exp.Parameters.Add(checkExp);
+    string source = Util.MakeSourceString(preToken, token);
+    exp.SetArgument("source", source);
+    return exp; }
+}
+
+FunctionExpression ForeignKeyConstraint() :
+{ FunctionExpression exp = new FunctionExpression("constraint_foreign_key");
+  Expression columnList, columnList2 = null;
+  Token referenceTable;
+  string updateRule = "NO ACTION";
+  string deleteRule = "NO ACTION";
+}
+{  <FOREIGN> <KEY> "(" columnList = BasicColumnComposite() ")"
+        <REFERENCES> referenceTable=TableName()
+                             [ "(" columnList2 = BasicColumnComposite() ")" ]
+        [   LOOKAHEAD(2) ( <ON> <DELETE> deleteRule=ReferentialTrigger()
+              [ <ON> <UPDATE> updateRule=ReferentialTrigger() ]
+            )
+          | ( <ON> <UPDATE> updateRule=ReferentialTrigger()
+              [ <ON> <DELETE> deleteRule=ReferentialTrigger() ]
+            )
+        ]
+
+  { exp.Parameters.Add(columnList);
+    exp.Parameters.Add(FetchTable(referenceTable));
+    if (columnList2 != null) exp.Parameters.Add(columnList2);
+    exp.Parameters.Add(FetchStatic(updateRule));
+    exp.Parameters.Add(FetchStatic(deleteRule));
+    return exp;
+  }
+}
+
+void ConstraintAttributes(FunctionExpression constraint) :
+{ string deferrable = "deferrable";
+  string initially = "initially immediate";
+}
+{
+  [ (
+      <INITIALLY> (   <DEFERRED>  { initially = "initially deferred"; }
+                    | <IMMEDIATE>
+                  )
+
+        [   <NOT> <DEFERRABLE>    { deferrable = "not deferrable"; }
+          | <DEFERRABLE>
+        ]
+    )
+  |
+    (
+        (   <NOT> <DEFERRABLE>    { deferrable = "not deferrable"; }
+          | <DEFERRABLE> )
+        [ <INITIALLY> (   <DEFERRED>  { initially = "initially deferred"; }
+                        | <IMMEDIATE>
+                      )
+        ]
+    )
+  ]
+
+  { constraint.Parameters.Add(FetchStatic(deferrable));
+    constraint.Parameters.Add(FetchStatic(initially));
+  }
+}
+
+
+FunctionExpression ConstraintDeclaration() :
+{ FunctionExpression constraint;
+  string constraintName = null;
+}
+{
+  ( [ <CONSTRAINT> constraintName = NoneDeliminatedReference() ]
+
+    (   constraint = PrimaryKeyConstraint()
+      | constraint = UniqueConstraint()
+      | constraint = CheckConstraint()
+      | constraint = ForeignKeyConstraint()
+    )
+
+    // Constraint deferrability
+    ConstraintAttributes(constraint)
+
+  )
+  { if (constraintName != null)
+        constraint.SetArgument("constraint_name", constraintName);
+    return constraint;
+  }
+
 }
 
 // A select with an optional order by clause
@@ -598,6 +857,38 @@ Expression ExplainStatement() :
     exp.Parameters.Add(selectExp);
     return exp;
   }
+}
+
+Expression SetStatement() :
+{ FunctionExpression setExp;
+  Expression expr;
+  string schemaName;
+  Token t;
+}
+{  <SET>
+   (    t=SQLIdentifier() <ASSIGNMENT> expr = Expression()
+         { setExp = new FunctionExpression("session_assignment");
+           setExp.Parameters.Add(FetchStatic(Util.AsNonQuotedRef(t)));
+           setExp.Parameters.Add(expr);
+         }
+
+     |  <TRANSACTIONISOLATIONLEVEL> t=<SERIALIZABLE>
+         { setExp = new FunctionExpression("isolation_assignment");
+           setExp.Parameters.Add(FetchStatic(t.image));
+         }
+
+     |  <AUTOCOMMIT> ( t=<ON> | t=<IDENTIFIER> )
+         { setExp = new FunctionExpression("autocommit_assignment");
+           setExp.Parameters.Add(FetchStatic(t.image));
+         }
+
+     |  <SCHEMA> schemaName = NoneDeliminatedReference()
+         { setExp = new FunctionExpression("schema_assignment");
+           setExp.Parameters.Add(FetchStatic(schemaName));
+         }
+
+   )
+   { return setExp; }
 }
 
 // ---------- Function specifications ----------

@@ -2,13 +2,13 @@
 
 namespace Deveel.Data.Sql {
 	public interface IMutableTableDataSource : ITableDataSource {
-		void SetValue(int column, SqlObject value);
+		void SetValue(int column, long rowid, SqlObject value);
 
 		void Finish(bool complete);
 
-		void BeginInsert();
+		long BeginInsert();
 
-		void BeginUpdate(long rowid);
+		long BeginUpdate(long rowid);
 
 		void Remove(long rowid);
 

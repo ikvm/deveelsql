@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	partial class QueryCostModel {
 		private readonly SystemTransaction transaction;
@@ -13,7 +15,7 @@ namespace Deveel.Data.Sql {
 			processor = new QueryProcessor(transaction);
 		}
 
-		private ITableDataSource ExecuteExpression(Expression expression) {
+		private ITable ExecuteExpression(Expression expression) {
 			// Note that this does not preserve query stack information.
 			return processor.Execute(expression);
 		}
@@ -294,7 +296,7 @@ namespace Deveel.Data.Sql {
 				// Fetch the table, apply the alias, and update the cost information.
 				// The cost in time is 0 for a fetch operation because no scan operations
 				// are necessary.
-				ITableDataSource table = ExecuteExpression(expression);
+				ITable table = ExecuteExpression(expression);
 				expression.CostTime = 0;
 				expression.CostRows = table.RowCount;
 			} else if (expression is FunctionExpression) {
@@ -361,7 +363,7 @@ namespace Deveel.Data.Sql {
 
 		private sealed class IndexKey {
 			public TableName IndexTable;
-			public TableName IndexName;
+			public string IndexName;
 		}
 
 		#endregion

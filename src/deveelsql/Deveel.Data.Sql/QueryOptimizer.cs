@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Deveel.Data.Sql.Client;
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	internal class QueryOptimizer {
 		private readonly SystemTransaction transaction;
@@ -302,14 +305,16 @@ namespace Deveel.Data.Sql {
 		}
 		
 		public void PopulateVariables(IList<FetchVariableExpression> varList, TableName tableName) {
-			ITableDataSource tsource = transaction.GetTable(tableName);
-			for (int i = 0; i < tsource.ColumnCount; ++i) {
-				Variable columnName = tsource.GetColumnName(i);
+			ITable tsource = transaction.GetTable(tableName);
+			int sz = tsource.Columns.Count;
+			for (int i = 0; i < sz; ++i) {
+				TableColumn column = tsource.Columns[i];
+				string columnName = column.Name;
 				
 				// The variable name,
-				FetchVariableExpression varExp = new FetchVariableExpression(new Variable(tableName, columnName.Name));
+				FetchVariableExpression varExp = new FetchVariableExpression(new Variable(tableName, columnName));
 				// The type,
-				SqlType returnType = tsource.GetColumnType(i);
+				SqlType returnType = column.Type;
 				varExp.ReturnType = returnType;
 				varList.Add(varExp);
 			}
@@ -566,6 +571,12 @@ namespace Deveel.Data.Sql {
 			costModel.Cost(outFilter, Double.PositiveInfinity, new int[1]);
 
 			return outFilter;
+		}
+
+		public Expression QualifyAgainstTable(Expression expression, TableName tableName) {
+			List<TableName> tlist = new List<TableName>(1);
+			tlist.Add(tableName);
+			return QualifyAgainstTableList(expression, tlist);
 		}
 
 		

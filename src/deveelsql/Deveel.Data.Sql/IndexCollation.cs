@@ -3,23 +3,60 @@
 namespace Deveel.Data.Sql {
 	public sealed class IndexCollation {
 		private readonly string function;
-		private readonly IndexSortColumn[] columns;
+		private readonly SqlType type;
+		private readonly CollationColumn[] columns;
 
-		public IndexCollation(IndexSortColumn[] columns, string function) {
+		public IndexCollation(SqlType type, CollationColumn[] columns, string function) {
+			if (columns.Length == 0)
+				throw new ArgumentException("Cannot create an empty collation.", "columns");
+
+			if (columns.Length > 1) {
+				if (!(type is SqlCompositeType))
+					throw new ArgumentException("Composite indexes must be represented by composite-type");
+
+				SqlCompositeType ctype = (SqlCompositeType) type;
+				if (ctype.PartCount != columns.Length)
+					throw new ArgumentException("Composite type size different to the number of columns given", "columns");
+			}
+
+			// Can't contain identical columns
+			for (int i = 0; i < columns.Length; ++i) {
+				for (int n = 0; n < columns.Length; ++n) {
+					if (i != n && columns[i].ColumnName.Equals(columns[n].ColumnName))
+						throw new ArgumentException("Repeat column '" + columns[i] +"' name");
+				}
+			}
+
+			this.type = type;
 			this.function = function;
-			this.columns = (IndexSortColumn[])columns.Clone();
-
+			this.columns = (CollationColumn[]) columns.Clone();
 		}
 
-		public IndexCollation(string columnName, SqlType type)
-			: this(new IndexSortColumn(columnName, type)) {
+		public IndexCollation(SqlType type, string columnName, bool ascending)
+			: this(type, new CollationColumn(columnName, ascending)) {
 		}
 
-		public IndexCollation(IndexSortColumn column)
-			: this(new IndexSortColumn[] { column }, null) {
+		public IndexCollation(SqlType type, string columnName)
+			: this(type, new CollationColumn(columnName)) {
 		}
 
-		public IndexSortColumn[] Columns {
+		public IndexCollation(SqlType type, CollationColumn column)
+			: this(type, new CollationColumn[] { column }, null) {
+		}
+
+		public IndexCollation(SqlType type, CollationColumn[] columns)
+			: this(type, columns, null) {
+		}
+
+		public SqlType Type {
+			get { return type; }
+		}
+
+		public int PartCount {
+			get { return columns.Length; }
+		}
+
+		public CollationColumn[] Columns {
 			get { return columns; }
 		}
 
@@ -41,6 +78,14 @@ namespace Deveel.Data.Sql {
 			}
 
 			return false;
+		}
+
+		public IndexCollation Reverse() {
+			CollationColumn[] reverseColumns = new CollationColumn[columns.Length];
+			for (int i = 0; i < columns.Length; i++)
+				reverseColumns[i] = new CollationColumn(columns[i].ColumnName, !columns[i].Ascending);
+
+			return new IndexCollation(type, reverseColumns, function);
 		}
 	}
 }

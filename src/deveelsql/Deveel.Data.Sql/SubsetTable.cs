@@ -1,5 +1,7 @@
 ﻿using System;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	public class SubsetTable : FilteredTable {
 
@@ -7,13 +9,13 @@ namespace Deveel.Data.Sql {
 		private bool indexRequestsFallthrough;
 
 
-		public SubsetTable(ITableDataSource child, IRowCursor subset)
+		public SubsetTable(ITable child, IRowCursor subset)
 			: base(child) {
 			this.subset = subset;
 			indexRequestsFallthrough = false;
 		}
 
-		public SubsetTable(ITableDataSource parent)
+		public SubsetTable(ITable parent)
 			: this(parent, new SimpleRowCursor(0)) {
 		}
 

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 
 namespace Deveel.Data.Sql {
-	public interface IRowCursor : IEnumerator<long>, ICloneable {
+	public interface IRowCursor : IEnumerator<RowId>, ICloneable {
 		long Position { get; }
 		
 		long Count { get; }

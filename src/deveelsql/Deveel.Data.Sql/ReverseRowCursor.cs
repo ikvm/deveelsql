@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 
 namespace Deveel.Data.Sql {
 	public sealed class ReverseRowCursor : IRowCursor {
@@ -25,7 +24,7 @@ namespace Deveel.Data.Sql {
 			get { return size; }
 		}
 		
-		public long Current {
+		public RowId Current {
 			get { return cursor.Current; }
 		}
 		

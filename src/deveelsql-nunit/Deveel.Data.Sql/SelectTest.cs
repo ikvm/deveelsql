@@ -1,100 +1,123 @@
 ﻿using System;
+using System.Data;
+
+using Deveel.Data.Sql.Client;
+using Deveel.Data.Sql.State;
 
 using NUnit.Framework;
 
 namespace Deveel.Data.Sql {
 	[TestFixture]
 	public sealed class SelectTest {
-		private SystemTransaction transaction;
+		private EmbeddedSessionContext sessionContext;
+		private IDbConnection connection;
 
 		[TestFixtureSetUp]
 		public void TestSetUp() {
-			MockTransactionContext context = new MockTransactionContext();
-			context.CreateSchema("test");
-			ITable table = context.CreateTable(new TableName("test", "names"));
-			table.TableSchema.AddColumn("id", SqlType.Numeric);
-			table.TableSchema.AddColumn("first_name", SqlType.String);
-			table.TableSchema.AddColumn("last_name", SqlType.String);
+			HeapDatabaseState testdb = new HeapDatabaseState(null, "testdb");
+			ITransactionState transaction = testdb.CreateTransaction();
+			transaction.CreateSchema("test");
+
+			IMutableTable table = (IMutableTable) transaction.CreateTable(new TableName("test", "names"));
+			table.Columns.Add("id", SqlType.Numeric, true);
+			table.Columns.Add("first_name", SqlType.String, true);
+			table.Columns.Add("last_name", SqlType.String, true);
 
 			TableRow row = table.NewRow();
 			row.SetValue("id", 1);
 			row.SetValue("first_name", "Antonello");
 			row.SetValue("last_name", "Provenzano");
-			table.Insert(row);
+			row.Insert();
+			table.Commit();
 
-			table = context.CreateTable(new TableName("test", "books"));
-			table.TableSchema.AddColumn("id", SqlType.Numeric);
-			table.TableSchema.AddColumn("title", SqlType.String);
-			table.TableSchema.AddColumn("pages", SqlType.Numeric);
-			table.TableSchema.AddColumn("added", SqlType.DateTime);
-
-			row = table.NewRow();
-			row.SetValue("id", 1);
-			row.SetValue("title", "The Lord of The Rings");
-			row.SetValue("pages", 712);
-			row.SetValue("added", "20/12/1998");
-			table.Insert(row);
-
-			table = context.CreateTable(new TableName("test", "book_read"));
-			table.TableSchema.AddColumn("id", SqlType.Numeric);
-			table.TableSchema.AddColumn("name_id", SqlType.Numeric);
-			table.TableSchema.AddColumn("book_id", SqlType.Numeric);
-			table.TableSchema.AddColumn("read_date", SqlType.DateTime);
+			table = (IMutableTable) transaction.CreateTable(new TableName("test", "books"));
+			table.Columns.Add("id", SqlType.Numeric, true);
+			table.Columns.Add("title", SqlType.String, true);
+			table.Columns.Add("author", SqlType.String, false);
 
 			row = table.NewRow();
-			row.SetValue("id", 1);
-			row.SetValue("name_id", 1);
-			row.SetValue("book_id", 1);
-			row.SetValue("read_date", new DateTime(2000, 12, 4));
-			table.Insert(row);
+			row["id"] = 1;
+			row["title"] = "The Lord Of The Rings";
+			row["author"] = "J. R. R. Tolkien";
+			row.Insert();
 
-			transaction = new SystemTransaction(context, new HeapSystemState());
-			transaction.ChangeSchema("test");
+			row = table.NewRow();
+			row["id"] = 2;
+			row["title"] = "Buddenbrooks";
+			row["author"] = "Thomas Mann";
+			row.Insert();
+
+			table.Commit();
+
+			table = (IMutableTable) transaction.CreateTable(new TableName("test", "book_read"));
+			table.Columns.Add("id", SqlType.Numeric, true);
+			table.Columns.Add("book_id", SqlType.Numeric, true);
+			table.Columns.Add("name_id", SqlType.Numeric, true);
+			table.Columns.Add("read_date", SqlType.DateTime, true);
+
+			row = table.NewRow();
+			row["id"] = 1;
+			row["book_id"] = 1;
+			row["name_id"] = 1;
+			row["read_date"] = "22/12/2001";
+			row.Insert();
+
+			row = table.NewRow();
+			row["id"] = 2;
+			row["book_id"] = 2;
+			row["name_id"] = 1;
+			row["read_date"] = "10/05/2009";
+			row.Insert();
+
+			table.Commit();
+
+			testdb.CommitTransaction(transaction);
+
+			sessionContext = new EmbeddedSessionContext(testdb, true, "antonello");
+			connection = sessionContext.CreateConnection();
+			connection.Open();
+
+			try {
+				IDbCommand command = connection.CreateCommand();
+				command.CommandText = "SET SCHEMA test;";
+				command.ExecuteNonQuery();
+			} catch (Exception e) {
+				Console.Error.WriteLine("Error: {0}", e.Message);
+				Console.Error.WriteLine(e.StackTrace);
+			}
+		}
+
+		[TearDown]
+		public void TestTearDown() {
+			connection.Close();
 		}
 
 		[Test]
 		public void SimpleSelect() {
-			Query query = new Query("SELECT first_name, last_name FROM names WHERE id = 1");
-			SqlSelect sqlSelect = new SqlSelect(query);
-			ITableDataSource result = sqlSelect.Execute(transaction);
+			IDbCommand command = connection.CreateCommand();
+			command.CommandText = "SELECT first_name, last_name FROM names WHERE id = ?";
+			command.Parameters.Add(1);
+			IDataReader reader = command.ExecuteReader();
 
-			Assert.AreEqual(1, result.RowCount);
-
-			IRowCursor cursor = result.GetRowCursor();
-			while (cursor.MoveNext()) {
-				string firstName = result.GetValue(0, cursor.Current);
-				string lastName = result.GetValue(1, cursor.Current);
-
-				Assert.AreEqual("Antonello", firstName);
-				Assert.AreEqual("Provenzano", lastName);
-			}
+			Assert.IsTrue(reader.Read());
+			Assert.AreEqual("Antonello", reader.GetString(0));
+			Assert.AreEqual("Provenzano", reader.GetString(1));
 		}
 
 		[Test]
 		public void InnerJoinSelect() {
-			Query query = new Query("SELECT b.title, n.first_name, br.read_date FROM book_read br, names n, books b WHERE br.book_id = b.id AND br.name_id = n.id;");
-			SqlSelect sqlSelect = new SqlSelect(query);
-			ITableDataSource result = sqlSelect.Execute(transaction);
+			IDbCommand command = connection.CreateCommand();
+			command.CommandText = "SELECT b.title, n.first_name, br.read_date FROM book_read br, names n, books b WHERE br.book_id = b.id AND br.name_id = n.id;";
+			IDataReader reader = command.ExecuteReader();
 
-			Assert.AreEqual(1, result.RowCount);
-
-			IRowCursor cursor = result.GetRowCursor();
-			while (cursor.MoveNext()) {
-				string bookTitle = result.GetValue(0, cursor.Current);
-				string personName = result.GetValue(1, cursor.Current);
-				DateTime date = result.GetValue(2, cursor.Current);
-
-				Console.Out.WriteLine("{0} read the book {1} the day {2}", personName, bookTitle, date);
+			while (reader.Read()) {
+				Console.Out.WriteLine("{0} has read {1} on {2}", reader.GetString(1), reader.GetString(0), reader.GetDateTime(2));
 			}
 		}
 
 		[Test]
 		public void GroupBySelect() {
 			Query query = new Query("select n.id, n.first_name, max(br.read_date) from names n, books b, book_read br where n.id = br.name_id and b.id = br.book_id group by n.id, n.last_name order by upper(n.last_name);");
-			SqlSelect sqlSelect = new SqlSelect(query);
-			ITableDataSource result = sqlSelect.Execute(transaction);
-
-			Assert.AreEqual(1, result.RowCount);
 		}
 	}
 }

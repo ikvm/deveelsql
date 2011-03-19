@@ -47,8 +47,8 @@ namespace Deveel.Data.Sql {
 			set { line = value; }
 		}
 		
-		internal TableName IndexCandidate {
-			get { return (TableName) GetArgument("index_candidate"); }
+		internal string IndexCandidate {
+			get { return (string) GetArgument("index_candidate"); }
 			set { SetArgument("index_candidate", value); }
 		}
 		

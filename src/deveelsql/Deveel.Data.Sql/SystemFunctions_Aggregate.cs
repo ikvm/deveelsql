@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Text;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	internal partial class SystemFunctions {
-		private static ITableDataSource ProcessAggregate(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args, IAggregateInspector aggregator) {
+		private static ITable ProcessAggregate(QueryProcessor processor, bool distinct, ITable group, Expression[] args, IAggregateInspector aggregator) {
 			// Qualify the return type of the parameter
 			SqlType type = processor.GetExpressionType(group, args[0]);
 
@@ -24,9 +26,9 @@ namespace Deveel.Data.Sql {
 			IRowCursor i = group.GetRowCursor();
 
 			while (i.MoveNext()) {
-				long rowid = i.Count;
+				RowId rowid = i.Current;
 				processor.UpdateTableRow(rowid);
-				ITableDataSource val = processor.Execute(args[0]);
+				ITable val = processor.Execute(args[0]);
 				SqlObject ob = QueryProcessor.Result(val)[0];
 				// If we hit a null value, we ignore it.  SQL-92 apparently says we
 				// should generate a warning for nulls that are eliminated by set
@@ -43,7 +45,7 @@ namespace Deveel.Data.Sql {
 		}
 
 
-		public static ITableDataSource Count(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public static ITable Count(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			// Only 1 argument allowed
 			if (args.Length > 1)
 				throw new ArgumentException("Only one argument permitted for COUNT function.");
@@ -67,7 +69,7 @@ namespace Deveel.Data.Sql {
 			return ProcessAggregate(processor, false, group, args, new CountAggregateInspector());
 		}
 
-		public static ITableDataSource Max(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public static ITable Max(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			// Aggregate function only can have 1 argument
 			if (args.Length > 1)
 				throw new ArgumentException("Only one argument permitted for MAX function.");
@@ -75,7 +77,7 @@ namespace Deveel.Data.Sql {
 			return ProcessAggregate(processor, distinct, group, args, new MaxAggregateInspector());
 		}
 
-		public static ITableDataSource Min(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public static ITable Min(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			// Aggregate function only can have 1 argument
 			if (args.Length > 1)
 				throw new ArgumentException("Only one argument permitted for MIN function.");
@@ -83,7 +85,7 @@ namespace Deveel.Data.Sql {
 			return ProcessAggregate(processor, distinct, group, args, new MinAggregateInspector());
 		}
 
-		public static ITableDataSource Sum(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public static ITable Sum(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			// Aggregate function only can have 1 argument
 			if (args.Length > 1)
 				throw new ArgumentException("Only one argument permitted for SUM function.");
@@ -91,7 +93,7 @@ namespace Deveel.Data.Sql {
 			return ProcessAggregate(processor, distinct, group, args, new SumAggregateInspector());
 		}
 
-		public static ITableDataSource Avg(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public static ITable Avg(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			// Aggregate function only can have 1 argument
 			if (args.Length > 1)
 				throw new ArgumentException("Only one argument permitted for SUM function.");
@@ -99,7 +101,7 @@ namespace Deveel.Data.Sql {
 			return ProcessAggregate(processor, distinct, group, args, new AvgAggregateInspector());
 		}
 
-		public static ITableDataSource GroupConcat(QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public static ITable GroupConcat(QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			// The output string
 			StringBuilder return_string = new StringBuilder();
 
@@ -114,10 +116,10 @@ namespace Deveel.Data.Sql {
 			IRowCursor i = group.GetRowCursor();
 			bool first = true;
 			while (i.MoveNext()) {
-				long rowid = i.Current;
+				RowId rowid = i.Current;
 				processor.UpdateTableRow(rowid);
 				foreach (Expression op in args) {
-					ITableDataSource val = processor.Execute(op);
+					ITable val = processor.Execute(op);
 					SqlObject ob = QueryProcessor.Result(val)[0];
 					if (!ob.IsNull) {
 						if (!first) {

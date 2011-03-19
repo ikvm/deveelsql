@@ -18,7 +18,7 @@ namespace Deveel.Data.Sql {
 			: this(null) {
 		}
 
-		public string TypeName {
+		public override string Name {
 			get { return typeName; }
 		}
 
@@ -59,9 +59,11 @@ namespace Deveel.Data.Sql {
 			//TODO: read the members
 		}
 
-		internal override void WriteTo(System.IO.Stream output) {
+		internal override void WriteTo(Stream output) {
 			BinaryWriter writer = new BinaryWriter(output, Encoding.Unicode);
-			writer.Write(TypeName);
+			writer.Write(Name);
+
+			//TODO:
 		}
 	}
 }

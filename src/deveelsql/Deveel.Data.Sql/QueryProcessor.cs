@@ -2,26 +2,27 @@
 using System.Collections.Generic;
 
 using Deveel.Data.Base;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
 	public sealed partial class QueryProcessor {
 		private readonly SystemTransaction transaction;
-		private readonly List<ITableDataSource> tableStack;
-		private readonly List<long> rowIdStack;
+		private readonly List<ITable> tableStack;
+		private readonly List<RowId> rowIdStack;
 		
 		internal QueryProcessor(SystemTransaction transaction) {
 			this.transaction = transaction;
-			tableStack = new List<ITableDataSource>();
-			rowIdStack = new List<long>();
+			tableStack = new List<ITable>();
+			rowIdStack = new List<RowId>();
 		}
 		
 		internal QueryProcessor(QueryProcessor src) {
 			transaction = src.transaction;
-			tableStack = new List<ITableDataSource>(src.tableStack);
-			rowIdStack = new List<long>(src.rowIdStack);
+			tableStack = new List<ITable>(src.tableStack);
+			rowIdStack = new List<RowId>(src.rowIdStack);
 		}
 		
-		private ITableDataSource Function(FunctionExpression op) {
+		private ITable Function(FunctionExpression op) {
 			string functionName = op.Name;
 			int argCount = op.Parameters.Count;
 
@@ -36,11 +37,11 @@ namespace Deveel.Data.Sql {
 					//   support subset filtered stack).
 					// The top table should be an aggregate table, or aggregate table
 					// friendly (have a near child table that is an aggregate table).
-					ITableDataSource top_table = tableStack[tableStack.Count - 1];
-					long rowid = rowIdStack[tableStack.Count - 1];
+					ITable topTable = tableStack[tableStack.Count - 1];
+					RowId rowid = rowIdStack[tableStack.Count - 1];
 					// Get the group of the current rowid
-					AggregateTable aggregate_table = GetAggregateTable(top_table);
-					ITableDataSource group = aggregate_table.GetGroupValue(rowid);
+					AggregateTable aggregateTable = GetAggregateTable(topTable);
+					ITable group = aggregateTable.GetGroupValue(rowid.ToInt64());
 					// Execute the aggregate function
 					bool distinct = op.IsDistinct;
 					return transaction.FunctionManager.EvaluateAggregate(functionName, this, distinct, group, expArgs);
@@ -79,36 +80,36 @@ namespace Deveel.Data.Sql {
 			throw new ArgumentException("Unknown function " + functionName);
 		}
 
-		private ITableDataSource FetchVariable(Variable var) {
-			return ResultTable(new SqlObject[] { GetValue(var) });
+		private ITable FetchVariable(Variable var) {
+			return ResultTable(new SqlObject[] { GetValue(var.Name) });
 		}
 
-		private ITableDataSource FetchStatic(SqlObject[] ob) {
+		private ITable FetchStatic(SqlObject[] ob) {
 			return ResultTable(ob);
 		}
 		
-		private ITableDataSource FetchTable(TableName tname) {
+		private ITable FetchTable(TableName tname) {
 			return transaction.GetTable(tname);
 		}
 
-		private ITableDataSource AliasTable(ITableDataSource child, TableName tname) {
+		private ITable AliasTable(ITable child, TableName tname) {
 			return new AliasedTable(child, tname);
 		}
 
 		
-		private ITableDataSource DoExecute(Expression expression) {
+		private ITable DoExecute(Expression expression) {
 			ExpressionType type = expression.Type;
 			
 			switch(type) {
 				case ExpressionType.Filter:
 					// We are filtering on the child,
-					ITableDataSource table = DoExecute(((FilterExpression)expression).Child);
+					ITable table = DoExecute(((FilterExpression)expression).Child);
 					return Filter(table, (FilterExpression)expression);
 				case ExpressionType.Join: {
 					// The tables to join,
 					JoinExpression joinExp = (JoinExpression)expression;
-					ITableDataSource leftTable = DoExecute(joinExp.Left);
-					ITableDataSource rightTable = DoExecute(joinExp.Right);
+					ITable leftTable = DoExecute(joinExp.Left);
+					ITable rightTable = DoExecute(joinExp.Right);
 					return Join(leftTable, rightTable, joinExp);
 				}
 				case ExpressionType.Function:
@@ -131,7 +132,7 @@ namespace Deveel.Data.Sql {
 			}
 		}
 		
-		private SqlType[] CreateResolverType(ITableDataSource table, Expression[] expressions) {
+		private SqlType[] CreateResolverType(ITable table, Expression[] expressions) {
 			// Fetch the DbType object for the expression(s).  If it's not composite
 			// we simply lookup the expression.
 			SqlType[] indexType;
@@ -150,7 +151,7 @@ namespace Deveel.Data.Sql {
 			return indexType;
 		}
 		
-		private static bool TrueResult(ITableDataSource table) {
+		private static bool TrueResult(ITable table) {
 			if (!IsFunctionResultTable(table))
 				return false;
 			
@@ -159,7 +160,7 @@ namespace Deveel.Data.Sql {
 			return result.Length == 1 && !result[0].IsNull && result[0].Value.ToBoolean().Value;
 		}
 		
-		private static AggregateTable GetAggregateTable(ITableDataSource table) {
+		private static AggregateTable GetAggregateTable(ITable table) {
 			if (table is AggregateTable)
 				return (AggregateTable)table;
 			if (table is FilteredTable)
@@ -170,16 +171,16 @@ namespace Deveel.Data.Sql {
 			throw new ApplicationException("AggregateTable not reachable");
 		}
 
-		private IIndexSetDataSource GetIndex(ITableDataSource graph, TableName indexName) {
+		private IIndexSetDataSource GetIndex(ITable graph, string indexName) {
 			// Null check
 			if (indexName == null)
 				return null;
 			
 			// If graph is an instance of alias table name, then the index is valid
 			if (graph is AliasedTable)
-				return transaction.GetIndex(indexName);
-			if (graph is IMutableTableDataSource)
-				return transaction.GetIndex(indexName);
+				return transaction.GetIndex(graph.Name, indexName);
+			if (graph is IMutableTable)
+				return transaction.GetIndex(graph.Name, indexName);
 			
 			// If it's a subset table, index requests may fallthrough
 			if (graph is SubsetTable) {
@@ -192,8 +193,36 @@ namespace Deveel.Data.Sql {
 			return null;
 		}
 
-		
-		internal IndexResolver CreateResolver(ITableDataSource table, FunctionExpression sortExpression) {
+		internal static Variable GetAsVariableRef(Expression op) {
+			if (op.Type == ExpressionType.FetchVariable) {
+				return (Variable)op.GetArgument("var");
+			}
+			return null;
+		}
+
+		internal static TableName GetNativeTableName(ITable table) {
+			if (table is AggregateTable)
+				// Aggregate tables can't be sourced back to a native source because the
+				// filter compacts several rows behind single aggregate sources.
+				return null;
+
+			if (table is FilteredTable)
+				// Source back through filtered tables by default
+				return GetNativeTableName(((FilteredTable) table).BaseTable);
+			if (table is SystemTable) {
+				// Reached a TSTableDataSource which is a native source
+				// TODO: We should probably have a NativeTableSource interface that
+				//   tables implement to represent they are a native source that can be
+				//   changed, etc.
+				return ((SystemTable) table).Name;
+			}
+
+			// All other table types can't be sourced back
+			return null;
+
+		}
+
+		internal IndexResolver CreateResolver(ITable table, FunctionExpression sortExpression) {
 			// Sort expressions
 			string functionName = sortExpression.Name;
 			
@@ -221,14 +250,14 @@ namespace Deveel.Data.Sql {
 			return new ExpressionIndexResolver(this, table, indexType, sortAscending, sortExprs);
 		}
 
-		internal ITableDataSource DistinctSubset(ITableDataSource table, Expression[] exps) {
+		internal ITable DistinctSubset(ITable table, Expression[] exps) {
 			// Trivial case of an empty table,
 			if (table.RowCount == 0)
 				return table;
 
 			IndexResolver resolver = CreateResolver(table, exps);
 			// The working set,
-			IIndex workingSet = transaction.CreateTemporaryIndex(table.RowCount);
+			IIndex<RowId> workingSet = transaction.CreateTemporaryIndex<RowId>(table.RowCount);
 			// Iterate over the table
 			IRowCursor cursor = table.GetRowCursor();
 
@@ -237,7 +266,7 @@ namespace Deveel.Data.Sql {
 
 			while (cursor.MoveNext()) {
 				// The rowid
-				long rowid = cursor.Current;
+				RowId rowid = cursor.Current;
 				// Fetch the SqlObject
 				SqlObject[] val = resolver.GetValue(rowid);
 				// TODO: How should DISTINCT behave for multiple columns when one of
@@ -259,40 +288,40 @@ namespace Deveel.Data.Sql {
 			return new SubsetTable(table, new DefaultRowCursor(workingSet.GetCursor()));
 		}
 
-		private IndexResolver CreateResolver(ITableDataSource table, Expression[] expressions) {
+		private IndexResolver CreateResolver(ITable table, Expression[] expressions) {
 			// Create a DbType of the composite of the operations
 			SqlType[] indexType = CreateResolverType(table, expressions);
 			// Create the resolver for the term(s) on the table
 			return new ExpressionIndexResolver(this, table, indexType, new bool[] { true }, expressions);
 		}
 		
-		public void PushTable(ITableDataSource table) {
+		public void PushTable(ITable table) {
 			tableStack.Add(table);
-			rowIdStack.Add((long)-1);
+			rowIdStack.Add(null);
 		}
 
-		public ITableDataSource PopTable() {
+		public ITable PopTable() {
 			rowIdStack.RemoveAt(rowIdStack.Count - 1);
-			ITableDataSource table = tableStack[tableStack.Count - 1];
+			ITable table = tableStack[tableStack.Count - 1];
 			tableStack.RemoveAt(tableStack.Count - 1);
 			return table;
 		}
 
-		public void UpdateTableRow(long rowid) {
+		public void UpdateTableRow(RowId rowid) {
 			rowIdStack[rowIdStack.Count - 1] = rowid;
 		}
 		
-		public SqlObject GetValue(Variable columnName) {
+		public SqlObject GetValue(string columnName) {
 			// We inspect the table stack from the top to the bottom, the first
 			// valid reference is the value we return
 			int sz = tableStack.Count;
 			for (int i = sz - 1; i >= 0; --i) {
-				ITableDataSource stackEntry = tableStack[i];
-				int colOffset = stackEntry.GetColumnOffset(columnName);
+				ITable stackEntry = tableStack[i];
+				int colOffset = stackEntry.Columns.IndexOf(columnName);
 				if (colOffset != -1) {
 					// Found it, so look it up
 					// Fetch the row_id
-					long rowid = rowIdStack[i];
+					RowId rowid = rowIdStack[i];
 					return stackEntry.GetValue(colOffset, rowid);
 				}
 			}
@@ -300,42 +329,42 @@ namespace Deveel.Data.Sql {
 			throw new ApplicationException("Unable to dereference " + columnName);
 		}
 		
-		public SqlType GetColumnType(Variable columnName) {
+		public SqlType GetColumnType(string columnName) {
 			// We inspect the table stack from the top to the bottom, the first
 			// valid reference is the value we return
 			int sz = tableStack.Count;
 			for (int i = sz - 1; i >= 0; --i) {
-				ITableDataSource stackEntry = tableStack[i];
-				int colOffset = stackEntry.GetColumnOffset(columnName);
+				ITable stackEntry = tableStack[i];
+				int colOffset = stackEntry.Columns.IndexOf(columnName);
 				if (colOffset != -1)
 					// Found it, so look it up
-					return stackEntry.GetColumnType(colOffset);
+					return stackEntry.Columns[colOffset].Type;
 			}
 			
-			throw new ApplicationException("Unable to dereference " + columnName.ToString());
+			throw new ApplicationException("Unable to dereference " + columnName);
 		}
 
 		
-		public SqlType GetExpressionType(ITableDataSource table, Expression expression) {
+		public SqlType GetExpressionType(ITable table, Expression expression) {
 			// If it's a fetch var expression
 			if (expression.Type == ExpressionType.FetchVariable) {
 				// The var
 				Variable var = ((FetchVariableExpression) expression).Variable;
-				ITableDataSource varTable = table;
+				ITable varTable = table;
 				// If it's in the table
-				int colOffset = varTable.GetColumnOffset(var);
+				int colOffset = varTable.Columns.IndexOf(var.Name);
 				// Query the stack if we didn't find it yet
 				int sz = tableStack.Count;
 				for (int i = sz - 1; i >= 0 && colOffset == -1; --i) {
 					varTable = tableStack[i];
-					colOffset = varTable.GetColumnOffset(var);
+					colOffset = varTable.Columns.IndexOf(var.Name);
 				}
 				// Exception if we didn't find it
 				if (colOffset == -1)
-					throw new ApplicationException("Unable to dereference " + var.ToString());
+					throw new ApplicationException("Unable to dereference " + var);
 				
 				// Get the ttype
-				return varTable.GetColumnType(colOffset);
+				return varTable.Columns[colOffset].Type;
 			}
 				// If it's a function,
 			if (expression.Type == ExpressionType.Function) {
@@ -436,7 +465,7 @@ namespace Deveel.Data.Sql {
 			throw new ApplicationException("Unexpected expression: " + expression.Type);
 		}
 
-		public ITableDataSource Execute(Expression expression) {
+		public ITable Execute(Expression expression) {
 			return DoExecute(expression);
 		}
 		
@@ -448,18 +477,18 @@ namespace Deveel.Data.Sql {
 			return new FunctionResultTable(new SqlObject[] { val });
 		}
 
-		public static bool IsFunctionResultTable(ITableDataSource source) {
+		public static bool IsFunctionResultTable(ITable source) {
 			return (source is FunctionResultTable);
 		}
 
-		public static SqlObject[] Result(ITableDataSource table) {
+		public static SqlObject[] Result(ITable table) {
 			if (!(table is FunctionResultTable))
 				throw new ArgumentException("The table must be the result of a function execution.", "table");
 			
-			int cols = table.ColumnCount;
+			int cols = table.Columns.Count;
 			SqlObject[] result = new SqlObject[cols];
 			for (int i = 0; i < cols; ++i) {
-				result[i] = table.GetValue(i, 0);
+				result[i] = table.GetValue(i, new RowId(0));
 			}
 			return result;
 		}
@@ -473,12 +502,12 @@ namespace Deveel.Data.Sql {
 		/// </summary>
 		class ExpressionIndexResolver : IndexResolver {
 			private QueryProcessor processor;
-			private ITableDataSource table;
+			private ITable table;
 			private Expression[] columnExps;
 			private SqlType[] collationType;
 			private bool[] ascending;
 
-			public ExpressionIndexResolver(QueryProcessor processor, ITableDataSource table, 
+			public ExpressionIndexResolver(QueryProcessor processor, ITable table, 
 			                               SqlType[] type, bool[] ascending_type, Expression[] column_ops) {
 				this.processor = new QueryProcessor(processor);
 				this.table = table;
@@ -491,7 +520,7 @@ namespace Deveel.Data.Sql {
 				//   that isn't shared with anything else.
 			}
 
-			public override int Compare(long rowid, SqlObject[] value) {
+			public override int Compare(RowId rowid, SqlObject[] value) {
 				SqlObject[] val1 = GetValue(rowid);
 				SqlObject[] val2 = value;
 
@@ -518,7 +547,7 @@ namespace Deveel.Data.Sql {
 				}
 			}
 
-			public override SqlObject[] GetValue(long rowid) {
+			public override SqlObject[] GetValue(RowId rowid) {
 				// Set the top of stack table row_id
 				processor.UpdateTableRow(rowid);
 				if (columnExps.Length == 1)

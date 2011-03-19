@@ -10,7 +10,7 @@ namespace Deveel.Data.Sql {
 		TableName TableName { get; }
 		
 		
-		int GetColumnOffset(Variable columnName);
+		int GetColumnOffset(string columnName);
 		
 		Variable GetColumnName(int offset);
 		

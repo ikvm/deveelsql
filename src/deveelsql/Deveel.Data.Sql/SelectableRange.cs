@@ -416,6 +416,14 @@ namespace Deveel.Data.Sql {
 			return count;
 		}
 
+		public static SelectableRange Is(SqlObject value) {
+			SelectableRange range = new SelectableRange();
+			range.encoding.Clear();
+			range.encoding.Add(value);
+			range.encoding.Add(value);
+			return range;
+		}
+
 		#region SelectableRangeIntersector
 
 		private class SelectableRangeIntersector : IRangeIntersector {

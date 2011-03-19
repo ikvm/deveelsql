@@ -3,11 +3,11 @@
 using Deveel.Data.Base;
 
 namespace Deveel.Data.Sql {
-	public abstract class IndexResolver : IIndexedObjectComparer<SqlObject[]> {
-		public abstract SqlObject[] GetValue(long rowid);
+	public abstract class IndexResolver : IIndexedObjectComparer<RowId, SqlObject[]> {
+		public abstract SqlObject[] GetValue(RowId rowId);
 
-		public virtual int Compare(long index, SqlObject[] value) {
-			SqlObject[] ob = GetValue(index);
+		public virtual int Compare(RowId rowId, SqlObject[] value) {
+			SqlObject[] ob = GetValue(rowId);
 			return SqlObject.Compare(ob, value);
 		}
 	}

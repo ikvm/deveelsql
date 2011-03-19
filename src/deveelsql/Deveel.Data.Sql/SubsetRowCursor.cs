@@ -47,7 +47,7 @@ namespace Deveel.Data.Sql {
 			get { return Current; }
 		}
 
-		public long Current {
+		public RowId Current {
 			get { return cursor.Current; }
 		}
 

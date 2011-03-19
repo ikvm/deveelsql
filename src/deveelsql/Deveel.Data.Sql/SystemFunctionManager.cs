@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 
 using Deveel.Data.Sql.Parser;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
 	internal class SystemFunctionManager {
@@ -194,7 +195,7 @@ namespace Deveel.Data.Sql {
 			functions.Add(function);
 		}
 
-		public ITableDataSource Evaluate(string functionName, QueryProcessor processor, Expression[] args) {
+		public ITable Evaluate(string functionName, QueryProcessor processor, Expression[] args) {
 			// 'CAST' is a special case,
 			if (functionName.Equals("@cast")) {
 				// Get the value to cast, and the type to cast it to,
@@ -214,7 +215,7 @@ namespace Deveel.Data.Sql {
 			return sysFun.Evaluate(processor, args);
 		}
 
-		public ITableDataSource EvaluateAggregate(string functionName, QueryProcessor processor, bool distinct, ITableDataSource group, Expression[] args) {
+		public ITable EvaluateAggregate(string functionName, QueryProcessor processor, bool distinct, ITable group, Expression[] args) {
 			Function sysFun = PickFunction(functionName, args);
 			if (sysFun == null)
 				throw new ApplicationException("Unable to resolve function: " + functionName);

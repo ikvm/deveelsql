@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Reflection;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	internal static partial class SystemFunctions {
 		private static SqlObject ArithmaticProcess(SqlObject[] args, ArithProc proc) {
@@ -175,17 +177,17 @@ namespace Deveel.Data.Sql {
 
 		private delegate SqlObject NestedEvaluate(SqlObject[] args);
 
-		private static ITableDataSource NestedAnyScan(QueryProcessor processor, Expression leftExp, Expression rightExp, NestedEvaluate evaluate) {
+		private static ITable NestedAnyScan(QueryProcessor processor, Expression leftExp, Expression rightExp, NestedEvaluate evaluate) {
 			// Evaluate the left and right side of the operation
-			ITableDataSource left = processor.Execute(leftExp);
-			ITableDataSource right = processor.Execute(rightExp);
+			ITable left = processor.Execute(leftExp);
+			ITable right = processor.Execute(rightExp);
 			// Turn left into a SqlObject
 			SqlObject leftOb = QueryProcessor.Result(left)[0];
 			// Scan right, return true on the first that's equal
 			IRowCursor i = right.GetRowCursor();
 			try {
 				while (i.MoveNext()) {
-					long rowid = i.Current;
+					RowId rowid = i.Current;
 					SqlObject scanVal = right.GetValue(0, rowid);
 					SqlObject[] args = new SqlObject[] { leftOb, scanVal };
 					SqlObject r = evaluate(args);
@@ -202,17 +204,17 @@ namespace Deveel.Data.Sql {
 			return QueryProcessor.ResultTable(new SqlObject(false));
 		}
 
-		private static ITableDataSource NestedAllScan(QueryProcessor processor, Expression leftExp, Expression rightExp, NestedEvaluate evaluate) {
+		private static ITable NestedAllScan(QueryProcessor processor, Expression leftExp, Expression rightExp, NestedEvaluate evaluate) {
 			// Evaluate the left and right side of the operation
-			ITableDataSource left = processor.Execute(leftExp);
-			ITableDataSource right = processor.Execute(rightExp);
+			ITable left = processor.Execute(leftExp);
+			ITable right = processor.Execute(rightExp);
 			// Turn left into a TObject
 			SqlObject leftOb = QueryProcessor.Result(left)[0];
 			// Scan right, return true on the first that's equal
 			IRowCursor i = right.GetRowCursor();
 			try {
 				while (i.MoveNext()) {
-					long rowid = i.Current;
+					RowId rowid = i.Current;
 					SqlObject scanVal = right.GetValue(0, rowid);
 					SqlObject[] args = new SqlObject[] { leftOb, scanVal };
 					SqlObject r = evaluate(args);
@@ -230,59 +232,59 @@ namespace Deveel.Data.Sql {
 		}
 
 		// ANY functions
-		public static ITableDataSource AnyEqual(QueryProcessor processor, Expression[] args) {
+		public static ITable AnyEqual(QueryProcessor processor, Expression[] args) {
 			return NestedAnyScan(processor, args[0], args[1], Equal);
 		}
 
-		public static ITableDataSource AnyNotEqual(QueryProcessor processor, Expression[] args) {
+		public static ITable AnyNotEqual(QueryProcessor processor, Expression[] args) {
 			return NestedAnyScan(processor, args[0], args[1], NotEqual);
 		}
 
-		public static ITableDataSource AnyGreaterThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AnyGreaterThan(QueryProcessor processor, Expression[] args) {
 			return NestedAnyScan(processor, args[0], args[1], GreaterThan);
 		}
 
-		public static ITableDataSource AnyLesserThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AnyLesserThan(QueryProcessor processor, Expression[] args) {
 			return NestedAnyScan(processor, args[0], args[1], LesserThan);
 		}
 
-		public static ITableDataSource AnyGreaterOrEqualThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AnyGreaterOrEqualThan(QueryProcessor processor, Expression[] args) {
 			return NestedAnyScan(processor, args[0], args[1], GreaterOrEqualThan);
 		}
 
-		public static ITableDataSource AnyLesserOrEqualThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AnyLesserOrEqualThan(QueryProcessor processor, Expression[] args) {
 			return NestedAnyScan(processor, args[0], args[1], LesserOrEqualThan);
 		}
 
 		// ALL functions
-		public static ITableDataSource AllEqual(QueryProcessor processor, Expression[] args) {
+		public static ITable AllEqual(QueryProcessor processor, Expression[] args) {
 			return NestedAllScan(processor, args[0], args[1], Equal);
 		}
-		public static ITableDataSource AllNotEqual(QueryProcessor processor, Expression[] args) {
+		public static ITable AllNotEqual(QueryProcessor processor, Expression[] args) {
 			return NestedAllScan(processor, args[0], args[1], NotEqual);
 		}
 
-		public static ITableDataSource AllGreaterThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AllGreaterThan(QueryProcessor processor, Expression[] args) {
 			return NestedAllScan(processor, args[0], args[1], GreaterThan);
 		}
 
-		public static ITableDataSource AllLesserThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AllLesserThan(QueryProcessor processor, Expression[] args) {
 			return NestedAllScan(processor, args[0], args[1], LesserThan);
 		}
 
-		public static ITableDataSource AllGreaterOrEqualThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AllGreaterOrEqualThan(QueryProcessor processor, Expression[] args) {
 			return NestedAllScan(processor, args[0], args[1], GreaterOrEqualThan);
 		}
 
-		public static ITableDataSource AllLesserOrEqualThan(QueryProcessor processor, Expression[] args) {
+		public static ITable AllLesserOrEqualThan(QueryProcessor processor, Expression[] args) {
 			return NestedAllScan(processor, args[0], args[1], LesserOrEqualThan);
 		}
 
-		public static ITableDataSource Exists(QueryProcessor processor, Expression[] args) {
+		public static ITable Exists(QueryProcessor processor, Expression[] args) {
 			// The nested expression to evaluate
 			Expression nested_op = args[0];
 			// Execute the nested operation,
-			ITableDataSource result = processor.Execute(nested_op);
+			ITable result = processor.Execute(nested_op);
 			// If there are elements, then 'exists' is true
 			return QueryProcessor.ResultTable(result.RowCount > 0 ? SqlObject.True : SqlObject.False);
 		}

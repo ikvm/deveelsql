@@ -44,37 +44,56 @@ namespace Deveel.Data.Sql {
 			}
 		}
 
+		public void AddEntry(JournalCommandCode code, long id) {
+			AddEntry(new JournalEntry(code, id));
+		}
+
 		public void AddEntry(JournalEntry entry) {
-			if (entry.Id < 0)
+			if (entry.ForTable && entry.TableId < 0)
+				throw new ArgumentException();
+			if (entry.ForRow && entry.RowId == null)
 				throw new ArgumentException();
 
 			// If index modification command then mark indexes as changed,
 			if (entry.IsIndexModification)
 				indexModified = true;
 
-			// Work out the size of this entry,
-			byte[] b = new byte[8];
-			for (int i = 0; i < 8; ++i) {
-				b[i] = (byte)(entry.Id >> (i * 8));
-			}
-
-			int level = 0;
-			for (int i = 7; i > 0; --i) {
-				if (b[i] != 0) {
-					level = i;
-					break;
+			if (entry.ForTable) {
+				// Work out the size of this entry,
+				byte[] b = new byte[8];
+				for (int i = 0; i < 8; ++i) {
+					b[i] = (byte) (entry.TableId >> (i*8));
 				}
+
+				int level = 0;
+				for (int i = 7; i > 0; --i) {
+					if (b[i] != 0) {
+						level = i;
+						break;
+					}
+				}
+
+				// We now can predict the size,
+				int size = level + 2;
+				// Ensure there's enough room to store this command,
+				EnsureSpace(size);
+				buffer[bufLength] = (byte) entry.TableId;
+				Array.Copy(b, 0, buffer, bufLength + 1, level + 1);
+
+				lastEntryOffset = bufLength;
+				bufLength += size;
+			} else {
+				RowId rowid = entry.RowId;
+				byte[] b = rowid.ToBinary();
+				int sz = b.Length;
+
+				EnsureSpace(sz);
+				Array.Copy(b, 0, buffer, bufLength, sz);
+
+				lastEntryOffset = bufLength;
+				bufLength += sz;
 			}
 
-			// We now can predict the size,
-			int size = level + 2;
-			// Ensure there's enough room to store this command,
-			EnsureSpace(size);
-			buffer[bufLength] = (byte)entry.Id;
-			Array.Copy(b, 0, buffer, bufLength + 1, level + 1);
-
-			lastEntryOffset = bufLength;
-			bufLength += size;
 			++entriesCount;
 		}
 
@@ -188,7 +207,11 @@ namespace Deveel.Data.Sql {
 				get {
 					if (advanced) {
 						JournalCommandCode code = (JournalCommandCode)(buffer[offset] & 0x01F);
-						currentEntry = new JournalEntry(code, GetCommandId());
+						object id = GetCommandId(code);
+						if (id is RowId)
+							currentEntry = new JournalEntry(code, (RowId)id);
+						else
+							currentEntry = new JournalEntry(code, (long)id);
 					}
 
 					return currentEntry;
@@ -199,8 +222,18 @@ namespace Deveel.Data.Sql {
 				get { return Current; }
 			}
 
-			private long GetCommandId() {
+			private object GetCommandId(JournalCommandCode code) {
 				int sz = identBytes;
+
+				if (code == JournalCommandCode.RowAdd ||
+					code == JournalCommandCode.RowRemove ||
+					code == JournalCommandCode.RowUpdate) {
+					byte[] b = new byte[sz];
+					Array.Copy(buffer, offset + 1, b, 0, sz);
+					return new RowId(b);
+				}
+
+				
 				long v = 0;
 				for (int i = 0; i < sz; ++i) {
 					v = v | (((long)buffer[offset + i + 1]) & 0x0FF) << (i * 8);
@@ -230,7 +263,7 @@ namespace Deveel.Data.Sql {
 					if (entry.IsAddCommand) {
 						// Okay, this is an add, so record the position and scan for the
 						// remove command,
-						long scanForRow = entry.Id;
+						RowId scanForRow = entry.RowId;
 
 						int recOffset = scanEnumerator.Offset;
 						bool isRemoved = false;
@@ -239,7 +272,7 @@ namespace Deveel.Data.Sql {
 							entry = scanEnumerator.Current;
 
 							// If this is a remove command and the row identifier matches,
-							if (entry.IsRemoveCommand && entry.Id == scanForRow) {
+							if (entry.IsRemoveCommand && entry.RowId.Equals(scanForRow)) {
 								// Remove command found with this identifier, so this row is
 								// removed so it shouldn't be returned.
 								isRemoved = true;

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Deveel.Data.Sql.Client;
+
 namespace Deveel.Data.Sql {
 	[Serializable]
 	public sealed class User {
@@ -12,7 +14,12 @@ namespace Deveel.Data.Sql {
 		private DateTime? expireDate;
 		private DateTime sessionStarted;
 		private List<Query> sessionCommands;
-		private long sessionId;
+		private SystemTransaction transaction;
+		private bool verified;
+
+		private const string SystemUserName = "@SYSTEM";
+
+		public static User System = new User(SystemUserName, false);
 
 		internal User(string name, bool toCreate) {
 			this.name = name;
@@ -22,19 +29,27 @@ namespace Deveel.Data.Sql {
 				createDate = DateTime.Now;
 		}
 
+		internal User(string name)
+			: this(name, false) {
+		}
+
 		public string Name {
 			get { return name; }
 		}
 
-		public long SessionId {
-			get { return sessionId; }
+		public bool IsSystem {
+			get { return name == SystemUserName; }
 		}
 
-		public bool IsInSession {
-			get { return sessionId != -1; }
+		internal SystemTransaction Transaction {
+			get { return transaction; }
 		}
 
-		public DateTime SessionStarted {
+		public bool HasOpenTransaction {
+			get { return transaction != null; }
+		}
+
+		public DateTime TransactionStarted {
 			get { return sessionStarted; }
 		}
 
@@ -70,24 +85,37 @@ namespace Deveel.Data.Sql {
 			get { return toCreate; }
 		}
 
-		internal void StartSession(long id) {
+		internal void StartTransaction(SystemTransaction tnx) {
+			if (!verified) {
+				tnx.VerifyUser(this);
+				verified = true;
+			}
+
+			verified = true;
 			sessionStarted = DateTime.Now;
 			sessionCommands = new List<Query>();
-			sessionId = id;
+			transaction = tnx;
 		}
 
-		internal void OnSessionCommand(Query query) {
+		internal void OnTransactionCommand(Query query) {
 			if (sessionCommands == null)
 				throw new SystemException();
 
 			sessionCommands.Add(query);
 		}
 
-		internal void EndSession() {
-			sessionId = -1;
+		internal void EndTransaction() {
+			transaction = null;
 			sessionCommands.Clear();
 			sessionCommands = null;
 			sessionStarted = DateTime.MinValue;
+			verified = false;
+		}
+
+		internal User Verified() {
+			User user = new User(name);
+			user.verified = true;
+			return user;
 		}
 	}
 }

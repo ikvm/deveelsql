@@ -1,15 +1,16 @@
 ﻿using System;
 
 using Deveel.Data.Base;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
 	public class IndexBasedIndexSetDataSource : IndexSetDataSourceBase {
 
-		private readonly ITableDataSource table;
+		private readonly ITable table;
 		private readonly IndexResolver resolver;
 
-		public IndexBasedIndexSetDataSource(ITableDataSource table, IndexResolver resolver, IIndex index)
-			: base(index) {
+		public IndexBasedIndexSetDataSource(ITable table, IndexResolver resolver, IIndex<RowId> index)
+			: base(table, index) {
 			this.table = table;
 			this.resolver = resolver;
 		}
@@ -23,11 +24,11 @@ namespace Deveel.Data.Sql {
 		}
 
 		public override TableName SourceTableName {
-			get { return table.TableName; }
+			get { return table.Name; }
 		}
 
-		public override TableName Name {
-			get { return TableName.Resolve("Index"); }
+		public override string Name {
+			get { return "Index"; }
 		}
 	}
 }

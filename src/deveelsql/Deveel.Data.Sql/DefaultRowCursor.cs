@@ -5,9 +5,9 @@ using Deveel.Data.Base;
 
 namespace Deveel.Data.Sql {
 	sealed class DefaultRowCursor : IRowCursor {
-		private readonly IIndexCursor cursor;
+		private readonly IIndexCursor<RowId> cursor;
 
-		public DefaultRowCursor(IIndexCursor cursor) {
+		public DefaultRowCursor(IIndexCursor<RowId> cursor) {
 			this.cursor = cursor;
 		}
 
@@ -23,7 +23,7 @@ namespace Deveel.Data.Sql {
 			cursor.Reset();
 		}
 
-		public long Current {
+		public RowId Current {
 			get { return cursor.Current; }
 		}
 
@@ -32,7 +32,7 @@ namespace Deveel.Data.Sql {
 		}
 
 		public object Clone() {
-			return new DefaultRowCursor((IIndexCursor) cursor.Clone());
+			return new DefaultRowCursor((IIndexCursor<RowId>) cursor.Clone());
 		}
 
 		public long Position {

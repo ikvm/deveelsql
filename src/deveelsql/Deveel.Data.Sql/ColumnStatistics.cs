@@ -1,9 +1,10 @@
 ﻿using System;
 
 using Deveel.Data.Base;
+using Deveel.Data.Sql.State;
 
 namespace Deveel.Data.Sql {
-	public class ColumnStatistics {
+	class ColumnStatistics {
 		private const int DivisionPointCount = 32;
 		private const int MaxSampleCount = 1024;
 
@@ -110,7 +111,7 @@ namespace Deveel.Data.Sql {
 
 		public void PerformSample(SystemTransaction transaction) {
 			// Translate into tables and column names
-			ITableDataSource tableSource = transaction.GetTable(var.TableName);
+			ITable tableSource = transaction.GetTable(var.TableName);
 			// DOn't bother unless the table has 64 or more values
 			if (tableSource.RowCount < (DivisionPointCount * 2)) {
 				sampleCount = 0;
@@ -123,24 +124,24 @@ namespace Deveel.Data.Sql {
 			sampleCount = (int)System.Math.Min(tableSource.RowCount / 2, MaxSampleCount);
 
 			String col_name = var.Name;
-			int colId = tableSource.GetColumnOffset(var);
+			int colId = tableSource.Columns.IndexOf(var.Name);
 			// Work out the size
 			long size = tableSource.RowCount;
 			// The sample point difference
 			double sampleDiff = (double)size / sampleCount;
 			// The index of the tables used in sampling
-			IIndex sampleIndex = transaction.CreateTemporaryIndex(sampleCount);
+			IIndex<RowId> sampleIndex = transaction.CreateTemporaryIndex<RowId>(sampleCount);
 			// Create a RowIndexCollation for this
 			SqlType type;
-			type = tableSource.GetColumnType(colId);
-			IndexCollation collation = new IndexCollation(col_name, type);
+			type = tableSource.Columns[colId].Type;
+			IndexCollation collation = new IndexCollation(type, col_name);
 			// Create the collation object,
 			CollationIndexResolver resolver = new CollationIndexResolver(tableSource, collation);
 
 			// The row cursor
 			IRowCursor rowCursor = tableSource.GetRowCursor();
 
-			long[] sampleRowset = new long[sampleCount];
+			RowId[] sampleRowset = new RowId[sampleCount];
 
 			// First read in the row_ids we are sampling,
 			{
@@ -156,7 +157,7 @@ namespace Deveel.Data.Sql {
 					if (!rowCursor.MoveNext())
 						throw new SystemException();
 
-					long rowId = rowCursor.Current;
+					RowId rowId = rowCursor.Current;
 					sampleRowset[samplesRead] = rowId;
 
 					// Should this be Math.random(sample_diff * 2) for random distribution
@@ -171,13 +172,13 @@ namespace Deveel.Data.Sql {
 
 				int samplePoint = 0;
 
-				foreach (long rowId in sampleRowset) {
+				foreach (RowId rowId in sampleRowset) {
 					// Hint ahead the samples we are picking,
 					if ((samplePoint % 24) == 0) {
 						for (int i = samplePoint;
 							 i < samplePoint + 24 && i < sampleRowset.Length;
 							 ++i) {
-							tableSource.FetchValue(-1, sampleRowset[i]);
+							tableSource.PrefetchValue(-1, sampleRowset[i]);
 						}
 					}
 
@@ -190,7 +191,7 @@ namespace Deveel.Data.Sql {
 			}
 
 			// Now extract the interesting sample points from the sorted set
-			IIndexCursor samplesCursor = sampleIndex.GetCursor();
+			IIndexCursor<RowId> samplesCursor = sampleIndex.GetCursor();
 			long sampleIndexSize = sampleIndex.Count;
 			double divisionDiff = sampleIndexSize / (DivisionPointCount - 1);
 			for (int i = 0; i < DivisionPointCount; ++i) {
@@ -203,7 +204,7 @@ namespace Deveel.Data.Sql {
 				if (!samplesCursor.MoveNext())
 					throw new SystemException();
 
-				long rowId = samplesCursor.Current;
+				RowId rowId = samplesCursor.Current;
 				divisionPoints[i] = tableSource.GetValue(colId, rowId);
 			}
 

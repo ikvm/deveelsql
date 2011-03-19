@@ -108,6 +108,10 @@ namespace Deveel.Data.Sql {
 			get { return !HasScale ? -1 : (int) args[1]; }
 		}
 
+		public int Precision {
+			get { return IsNumeric ? Size : -1; }
+		}
+
 		public bool HasLocale {
 			get {
 				if (!IsString)
@@ -127,6 +131,10 @@ namespace Deveel.Data.Sql {
 
 				return cachedLocale ?? (cachedLocale = new CultureInfo((string) args[1]));
 			}
+		}
+
+		public virtual string Name {
+			get { return code.ToString().ToUpperInvariant(); }
 		}
 
 		private object CastFromBoolean(object value) {
@@ -259,7 +267,7 @@ namespace Deveel.Data.Sql {
 			return c.CompareTo(y);
 		}
 
-		public SqlType Widest(SqlType type) {
+		public virtual SqlType Widest(SqlType type) {
 			// Nulls come first,
 			if (IsNull)
 				return this;

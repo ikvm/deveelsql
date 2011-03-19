@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Deveel.Data.Sql.State;
+
 namespace Deveel.Data.Sql {
 	public sealed class ExpressionTable : FilteredTable {
 		private readonly QueryProcessor processor;
 		private readonly List<OutputExpression> outputExps;
-		private readonly List<Column> columns;
+		private ExpressionColumnCollection columns;
 		
-		public ExpressionTable(ITableDataSource child, QueryProcessor processor)
+		public ExpressionTable(ITable child, QueryProcessor processor)
 			: base(child) {
 			// Make a copy of the processor
 			this.processor = new QueryProcessor(processor);
@@ -15,7 +17,7 @@ namespace Deveel.Data.Sql {
 			this.processor.PushTable(child);
 
 			outputExps = new List<OutputExpression>();
-			columns = new List<Column>();
+			columns = new ExpressionColumnCollection(this);
 		}
 		
 		public Expression[] Expressions {
@@ -28,14 +30,10 @@ namespace Deveel.Data.Sql {
 			}
 		}
 
-		public override TableName TableName {
+		public override TableName Name {
 			get { return new TableName("@FUNCTIONTABLE@"); }
 		}
-		
-		public override int ColumnCount {
-			get { return outputExps.Count; }
-		}
-		
+				
 		public void AddColumn(string label, SqlType type, Expression expr) {
 			OutputExpression outExpr = new OutputExpression();
 			outExpr.label = label;
@@ -48,36 +46,9 @@ namespace Deveel.Data.Sql {
 				outExpr.var = ((FetchVariableExpression)expr).Variable;
 
 			outputExps.Add(outExpr);
-
-			// Add it to the table_meta
-			Column col = new Column();
-			col.name = new Variable(TableName, label);
-			col.type = type;
-			columns.Add(col);
 		}
 		
-		public override int GetColumnOffset(Variable columnName) {
-			if (!TableName.Equals(columnName.TableName))
-				return -1;
-			
-			for (int i = 0; i < columns.Count; i++) {
-				Column column = columns[i];
-				if (column.name.Equals(columnName))
-					return i;
-			}
-			
-			return -1;
-		}
-		
-		public override Variable GetColumnName(int offset) {
-			return columns[offset].name;
-		}
-		
-		public override SqlType GetColumnType(int offset) {
-			return columns[offset].type;
-		}
-		
-		public override SqlObject GetValue(int column, long row) {
+		public override SqlObject GetValue(int column, RowId row) {
 			OutputExpression outExpr = outputExps[column];
 			Expression expression = outExpr.expression;
 			// Set the processor stack as necessary
@@ -86,15 +57,6 @@ namespace Deveel.Data.Sql {
 			return QueryProcessor.Result(processor.Execute(expression))[0];
 		}
 
-
-		#region Column
-		
-		class Column {
-			public Variable name;
-			public SqlType type;
-		}
-		
-		#endregion
 
 		#region OutputExpression
 		
@@ -106,6 +68,43 @@ namespace Deveel.Data.Sql {
 		}
 
 		
+		#endregion
+
+		#region ExpressionColumnList
+
+		private class ExpressionColumnCollection : ColumnCollection {
+			private readonly ExpressionTable table;
+
+			public ExpressionColumnCollection(ExpressionTable table) 
+				: base(table) {
+				this.table = table;
+			}
+
+			public override bool IsReadOnly {
+				get { return true; }
+			}
+
+			public override int Count {
+				get { return table.outputExps.Count; }
+			}
+
+			public override int IndexOf(string columnName) {
+				int sz = Count;
+				for (int i = 0; i < sz; i++) {
+					OutputExpression exp = table.outputExps[i];
+					if (String.Compare(exp.label, columnName, IgnoreCase) == 0)
+						return i;
+				}
+
+				return -1;
+			}
+
+			public override TableColumn GetColumn(int index) {
+				OutputExpression exp = table.outputExps[index];
+				return new TableColumn(table, exp.label, exp.type);
+			}
+		}
+
 		#endregion
 	}
 }

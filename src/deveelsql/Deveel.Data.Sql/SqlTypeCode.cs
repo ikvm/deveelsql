@@ -8,6 +8,7 @@ namespace Deveel.Data.Sql {
 		String = 7,
 		Binary = 8,
 		DateTime = 9,
-		UserType = 20
+		UserType = 20,
+		Array = 100
 	}
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 
 namespace Deveel.Data.Sql {
@@ -11,6 +12,7 @@ namespace Deveel.Data.Sql {
 		private static readonly SqlValue NumericNull = new SqlBinaryValue(new byte[] { NumericNullType });
 		private static readonly SqlValue BooleanNull = new SqlBinaryValue(new byte[] { BooleanNullType });
 		private static readonly SqlValue DateTimeNull = new SqlBinaryValue(new byte[] { DateTimeNullType });
+		private static readonly SqlValue BinaryNull = new SqlBinaryValue(new byte[] {BinaryNullType});
 
 		private static readonly SqlValue BooleanTrue = new SqlBinaryValue(new byte[] { BooleanTrueType });
 		private static readonly SqlValue BooleanFalse = new SqlBinaryValue(new byte[] { BooleanFalseType });
@@ -20,16 +22,14 @@ namespace Deveel.Data.Sql {
 		private const byte NumericNullType = 3;
 		private const byte BooleanNullType = 6;
 		private const byte DateTimeNullType = 9;
+		private const byte BinaryNullType = 10;
 
 		private const byte StringType = 64;
 		private const byte NumericType = 65;
-		private const byte LongType = 66;
-		private const byte IntegerType = 67;
 		private const byte BooleanTrueType = 68;
 		private const byte BooleanFalseType = 69;
-		private const byte DoubleType = 70;
-		private const byte FloatType = 71;
 		private const byte DateTimeType = 72;
+		private const byte BinaryType = 73;
 
 		public abstract int Length { get; }
 
@@ -70,40 +70,6 @@ namespace Deveel.Data.Sql {
 		public int CompareTo(SqlValue other) {
 			return CompareTo(other, null);
 		}
-
-		public long? ToLong() {
-			// The null case,
-			byte b = PeekByte(0);
-			if (b < 64)
-				return null;
-
-			if (b != LongType)
-				throw new InvalidOperationException("Not a Long type");
-
-			try {
-				BinaryReader din = new BinaryReader(new SqlValueInputStream(this, 1));
-				return din.ReadInt64();
-			} catch (IOException e) {
-				throw new FormatException(e.Message, e);
-			}
-		}
-
-		public int? ToInteger() {
-			// The null case,
-			byte b = PeekByte(0);
-			if (b < 64)
-				return null;
-
-			if (b != IntegerType)
-				throw new InvalidOperationException("Not an Integer type");
-
-			try {
-				BinaryReader din = new BinaryReader(new SqlValueInputStream(this, 1));
-				return din.ReadInt32();
-			} catch (IOException e) {
-				throw new FormatException(e.Message, e);
-			}
-		}
 		
 		public override string ToString() {
 			// The null case,
@@ -124,41 +90,6 @@ namespace Deveel.Data.Sql {
 				}
 
 				return buf.ToString();
-			} catch (IOException e) {
-				throw new FormatException(e.Message, e);
-			}
-		}
-
-		public double? ToDouble() {
-			// The null case,
-			byte b = PeekByte(0);
-			if (b < 64)
-				return null;
-
-			if (b != DoubleType)
-				throw new InvalidOperationException("Not a Double type");
-
-			try {
-				BinaryReader din = new BinaryReader(new SqlValueInputStream(this, 1));
-				return BitConverter.Int64BitsToDouble(din.ReadInt64());
-			} catch (IOException e) {
-				throw new FormatException(e.Message, e);
-			}
-		}
-
-		public float? ToFloat() {
-			// The null case,
-			byte b = PeekByte(0);
-			if (b < 64)
-				return null;
-
-			if (b != FloatType)
-				throw new InvalidOperationException("Not a Float type");
-
-			try {
-				BinaryReader din = new BinaryReader(new SqlValueInputStream(this, 1));
-				int v = din.ReadInt32();
-				return BitConverter.ToSingle(BitConverter.GetBytes(v), 0);
 			} catch (IOException e) {
 				throw new FormatException(e.Message, e);
 			}
@@ -220,6 +151,25 @@ namespace Deveel.Data.Sql {
 			throw new InvalidOperationException("Not a Boolean type");
 		}
 
+		public byte[] ToBinary() {
+			byte b = PeekByte(0);
+			if (b < 64)
+				return null;
+
+			if (b != BinaryType)
+				throw new InvalidOperationException("Not a Binary type.");
+
+			try {
+				BinaryReader reader = new BinaryReader(new SqlValueInputStream(this, 1));
+				int length = reader.ReadInt32();
+				byte[] outBuffer = new byte[length];
+				reader.Read(outBuffer, 0, length);
+				return outBuffer;
+			} catch (Exception e) {
+				throw new FormatException(e.Message, e);
+			}
+		}
+
 
 		public object ToObject() {
 			byte b = PeekByte(0);
@@ -230,18 +180,12 @@ namespace Deveel.Data.Sql {
 				return ToString();
 			if (b == NumericType)
 				return ToNumber();
-			if (b == LongType)
-				return ToLong();
-			if (b == IntegerType)
-				return ToInteger();
 			if (b == BooleanTrueType)
 				return true;
 			if (b == BooleanFalseType)
 				return false;
-			if (b == DoubleType)
-				return ToDouble();
-			if (b == FloatType)
-				return ToFloat();
+			if (b == BinaryType)
+				return ToBinary();
 
 			throw new ArgumentException("Unknown value format");
 		}
@@ -259,6 +203,8 @@ namespace Deveel.Data.Sql {
 					return BooleanNull;
 				case SqlTypeCode.DateTime:
 					return DateTimeNull;
+				case SqlTypeCode.Binary:
+					return BinaryNull;
 				default:
 					throw new ArgumentException("Unknown type.");
 			}
@@ -281,13 +227,16 @@ namespace Deveel.Data.Sql {
 
 			byte state = (byte)value.State;
 			int scale = value.Scale;
+			int precision = value.Precision;
 			byte[] numdata = value.ToByteArray();
-			byte[] buf = new byte[1 + 1 + 4 + numdata.Length];
+			byte[] buf = new byte[1 + 1 + 4 + 4 + numdata.Length];
 			buf[0] = NumericType;
 			buf[1] = state;
 			byte[] scaleBytes = BitConverter.GetBytes(scale);
+			byte[] precisionBytes = BitConverter.GetBytes(precision);
 			Array.Copy(scaleBytes, 0, buf, 2, 4);
-			Array.Copy(numdata, 0, buf, 6, numdata.Length);
+			Array.Copy(precisionBytes, 0, buf, 6, 4);
+			Array.Copy(numdata, 0, buf, 10, numdata.Length);
 			return new SqlBinaryValue(buf);
 		}
 
@@ -300,6 +249,40 @@ namespace Deveel.Data.Sql {
 
 		public static SqlValue FromBoolean(bool value) {
 			return FromBoolean(new bool?(value));
+		}
+
+		public static SqlValue FromBinary(byte[] binary) {
+			if (binary == null)
+				return BinaryNull;
+
+			int binLength = binary.Length;
+			byte[] buf = new byte[1 + 4 + binLength];
+			buf[0] = BinaryType;
+			byte[] binLengthBuf = BitConverter.GetBytes(binLength);
+			Array.Copy(binLengthBuf, 0, buf, 1, 4);
+			Array.Copy(binary, 0, buf, 5, binary.Length);
+			return new SqlBinaryValue(buf);
+		}
+
+		public static SqlValue FromBinary(Stream stream) {
+			if (stream == null)
+				return BinaryNull;
+
+			if (!stream.CanRead)
+				throw new ArgumentException("The input stream cannot be read.", "stream");
+
+			long length = stream.Length;
+			if (length > Int32.MaxValue)
+				throw new ArgumentException("The stream is to extended to be read here.", "stream");
+
+			byte[] buf = new byte[1 + 4 + length];
+			buf[0] = BinaryType;
+			byte[] binLengthBuf = BitConverter.GetBytes(length);
+			Array.Copy(binLengthBuf, 0, buf, 1, 4);
+			byte[] binary = new byte[length];
+			stream.Read(binary, 0, (int) length);
+			Array.Copy(binary, 0, buf, 5, binary.Length);
+			return new SqlBinaryValue(buf);
 		}
 
 		public static SqlValue FromObject(object value) {
@@ -327,6 +310,11 @@ namespace Deveel.Data.Sql {
 			if (value is DateTime)
 				return FromDateTime((DateTime) value);
 
+			if (value is byte[])
+				return FromBinary((byte[]) value);
+			if (value is Stream)
+				return FromBinary((Stream) value);
+
 			throw new ArgumentException("Cannot construct from value.");
 		}
 
@@ -345,6 +333,21 @@ namespace Deveel.Data.Sql {
 
 		public static SqlValue FromDateTime(DateTime value) {
 			return FromDateTime(new DateTime?(value));
+		}
+
+		public static SqlValue Serialize(object obj) {
+			MemoryStream stream = new MemoryStream(1024);
+			BinaryFormatter formatter = new BinaryFormatter();
+			formatter.Serialize(stream, obj);
+			stream.Flush();
+			return FromBinary(stream);
+		}
+
+		public static object Deserialize(SqlValue value) {
+			byte[] data = value.ToBinary();
+			MemoryStream stream = new MemoryStream(data);
+			BinaryFormatter formatter = new BinaryFormatter();
+			return formatter.Deserialize(stream);
 		}
 	}
 }
