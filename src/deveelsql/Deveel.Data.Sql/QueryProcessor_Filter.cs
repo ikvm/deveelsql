@@ -68,7 +68,7 @@ namespace Deveel.Data.Sql {
 					ITable expResult = DoExecute(op);
 					// If it's true, add the row_id to the working set
 					
-					if (TrueResult(expResult)) {
+					if (BooleanResult(expResult)) {
 						// Note, we preserve the ordering of the table being filtered
 						workingSet.Add(rowid);
 					} else {

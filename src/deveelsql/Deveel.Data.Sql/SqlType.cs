@@ -19,6 +19,15 @@ namespace Deveel.Data.Sql {
 		public static readonly SqlType Binary = MakeType(SqlTypeCode.Binary);
 		public static readonly SqlType DateTime = MakeType(SqlTypeCode.DateTime);
 
+		private static readonly string[] SqlDateTimeFormats = new string[] {
+		                                                                   	"yyyy-MM-dd HH:mm:ss.z",
+		                                                                   	"yyyy-MM-dd HH:mm:ss",
+		                                                                   	"yyyy-MM-dd",
+		                                                                   	"HH:mm:ss"
+		                                                                   };
+
+		private const string SqlDateToStringFormat = "yyyy-MM-dd HH:mm:ss.z";
+
 		internal SqlType(SqlTypeCode code, params object[] args) {
 			this.code = code;
 			if (args != null)
@@ -137,72 +146,96 @@ namespace Deveel.Data.Sql {
 			get { return code.ToString().ToUpperInvariant(); }
 		}
 
-		private object CastFromBoolean(object value) {
+		private object CastToBoolean(object value) {
 			if (value == null || IsNull)
 				return null;
 
-			bool srcValue;
-			if (value is bool?) {
-				if (!((bool?)value).HasValue)
+			if (value is bool)
+				return (bool) value;
+			if (value is bool?)
+				return ((bool?) value).Value;
+
+			if (value is BigNumber) {
+				BigNumber number = (BigNumber) value;
+				if (number == BigNumber.Zero)
+					return false;
+				if (number == BigNumber.One)
+					return true;
+				return null;
+			}
+			if (value is string) {
+				bool b;
+				if (!System.Boolean.TryParse((string)value, out b))
 					return null;
-				srcValue = ((bool?)value).Value;
-			} else if (value is bool) {
-				srcValue = (bool)value;
-			} else {
-				throw new ArgumentException();
+				return b;
 			}
 
-			if (code == SqlTypeCode.Boolean)
-				return srcValue;
-			if (code == SqlTypeCode.Numeric)
-				return null;
-			if (code == SqlTypeCode.String)
-				return srcValue.ToString();
-
-			throw new ArgumentException("Cast failed to " + this);
+			throw new InvalidCastException("Cannot cast " + value + " to " + this);
 		}
 
 
-		private object CastFromNumeric(object value) {
-			BigNumber srcValue = value as BigNumber;
-			if (srcValue == null || IsNull)
+		private object CastToNumeric(object value) {
+			if (value == null || IsNull)
 				return null;
 
-			if (IsBoolean)
-				// Can't cast number to boolean
-				return null;
-			if (code == SqlTypeCode.Numeric)
-				return srcValue;
-			if (IsString)
-				return srcValue.ToString();
+			if (value is bool)
+				// Can't cast number from boolean
+				return (bool) value ? BigNumber.One : BigNumber.Zero;
+			if (value is BigNumber)
+				return value;
+			if (value is string)
+				return BigNumber.Parse(value.ToString());
 
 			throw new ArgumentException("Cannot cast to " + this);
 		}
 
-		private object CastFromString(object value) {
+		private object CastToString(object value) {
 			if (value == null || IsNull)
 				return null;
 
-			if (code == SqlTypeCode.Boolean)
-				// Can't cast string to boolean
-				return null;
+			if (value is bool)
+				return ((bool) value) ? "true" : "false";
 
-			string s = (string)value;
-
-			if (code == SqlTypeCode.Numeric) {
-				BigNumber r;
-				try {
-					r = BigNumber.Parse(s);
-				} catch (FormatException) {
+			if (value is BigNumber) {
+				string s = value.ToString();
+				if (HasSize && s.Length > Size)
 					return null;
-				}
-				return r;
+				return s;
 			}
 
-			if (code == SqlTypeCode.String)
+			if (value is string) {
+				string s = (string) value;
+				if (HasSize && s.Length > Size) {
+					s = s.Substring(0, Size);
+				}
+
 				return s;
+			}
+
+			if (value is DateTime) {
+				DateTime d = (DateTime) value;
+				string s = d.ToString(SqlDateToStringFormat, CultureInfo.InvariantCulture);
+				if (HasSize && s.Length > Size)
+					return null;
+				return s;
+			}
 
 			throw new ArgumentException("Cast failed to " + this);
+		}
+
+		private object CastToDateTime(object value) {
+			if (value == null || IsNull)
+				return null;
+
+			if (value is string) {
+				string s = (string) value;
+				DateTime d;
+				if (!System.DateTime.TryParseExact(s, SqlDateTimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out d))
+					return null;
+				return d;
+			}
+
+			throw new InvalidCastException("Cannot cast " + value + " to DATETIME");
 		}
 
 		internal virtual void WriteTo(Stream output) {
@@ -286,19 +319,30 @@ namespace Deveel.Data.Sql {
 			throw new ArgumentException("Unknown widest type error");
 		}
 
-		public object Cast(object value) {
+		private object Cast(object value) {
 			if (code == SqlTypeCode.Null)
 				return null;
 
 			if (code == SqlTypeCode.Boolean)
-				return CastFromBoolean(value);
+				return CastToBoolean(value);
 			if (code == SqlTypeCode.Numeric)
-				return CastFromNumeric(value);
+				return CastToNumeric(value);
 			if (code == SqlTypeCode.String)
-				return CastFromString(value);
+				return CastToString(value);
+			if (code == SqlTypeCode.DateTime)
+				return CastToDateTime(value);
 
 			// not supported by default ...
-			throw new NotSupportedException();
+			throw new InvalidCastException("Cannot cast " + value + " to " + ToString());
+		}
+
+		public SqlObject Cast(SqlObject value) {
+			if (value.IsNull)
+				return SqlObject.Null;
+
+			object obj = value.ToObject();
+			obj = Cast(obj);
+			return new SqlObject(this, SqlValue.FromObject(obj));
 		}
 
 		public byte[] ToBinary() {

@@ -161,7 +161,7 @@ namespace Deveel.Data.Sql {
 			tableSource.CopyTo(this);
 
 			// Update the directory id,
-			AddObject(tableName, user.Name);
+			AddObject(tableId, tableName, user.Name);
 		}
 
 		public SystemTable CreateTable(TableName tableName) {
@@ -185,7 +185,7 @@ namespace Deveel.Data.Sql {
 			SystemTable sysTable = new SystemTable(this, table, tableId);
 
 			// Add this table to the tables.
-			AddObject(tableName, "TABLE");
+			AddObject(tableId, tableName, "TABLE");
 
 			// Log the change in the journal
 			journal.AddEntry(JournalCommandCode.TableCreate, tableId);
@@ -295,8 +295,8 @@ namespace Deveel.Data.Sql {
 				
 				// Add to the list
 				list.Add(new ForeignKey(tableName, sourceColumns, dstTableName, destColumns, updateAction.ToString(),
-				                        deleteAction.ToString(), deferrable.ToBoolean().GetValueOrDefault(),
-				                        deferred.ToBoolean().GetValueOrDefault()));
+				                        deleteAction.ToString(), deferrable.ToBoolean(),
+				                        deferred.ToBoolean()));
 			}
 
 			// Return the list

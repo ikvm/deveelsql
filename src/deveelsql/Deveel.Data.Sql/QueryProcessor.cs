@@ -151,13 +151,13 @@ namespace Deveel.Data.Sql {
 			return indexType;
 		}
 		
-		private static bool TrueResult(ITable table) {
+		private static bool BooleanResult(ITable table) {
 			if (!IsFunctionResultTable(table))
 				return false;
 			
 			SqlObject[] result = Result(table);
 			// If the returned value is not null
-			return result.Length == 1 && !result[0].IsNull && result[0].Value.ToBoolean().Value;
+			return result.Length == 1 && !result[0].IsNull && result[0].ToBoolean();
 		}
 		
 		private static AggregateTable GetAggregateTable(ITable table) {

@@ -115,8 +115,7 @@ namespace Deveel.Data.Sql {
 				if (tableName.Equals(SystemTableNames.Index) ||
 					tableName.Equals(SystemTableNames.Tables)) {
 					// Fetch the index and rebuild it
-					long indexId = id.ToInt64().GetValueOrDefault();
-					SystemIndexSetDataSource sysIndex = GetIndex(indexId);
+					SystemIndexSetDataSource sysIndex = GetIndex(id);
 					RebuildIndex(tableName, sysIndex);
 				}
 			}
@@ -260,7 +259,7 @@ namespace Deveel.Data.Sql {
 			int i = -1;
 			while (cursor.MoveNext()) {
 				SqlObject indexId = table.GetValue(0, cursor.Current);
-				indexes[i++] = GetIndex(indexId.ToInt64().GetValueOrDefault());
+				indexes[i++] = GetIndex(indexId);
 			}
 
 			return indexes;
@@ -326,7 +325,7 @@ namespace Deveel.Data.Sql {
 					}
 				}
 				// If found
-				return found ? indexId.ToInt64().GetValueOrDefault() : -1;
+				return found ? indexId.ToInt64() : -1;
 			} else {
 				// No, so fetch it
 				IIndexSetDataSource index = GetIndex(SystemTableNames.Index, "index_composite_idx");
@@ -348,7 +347,7 @@ namespace Deveel.Data.Sql {
 				if (!cursor.MoveNext())
 					throw new ApplicationException();
 
-				return indexTable.GetValue(0, cursor.Current).ToInt64().GetValueOrDefault();
+				return indexTable.GetValue(0, cursor.Current);
 			}
 		}
 

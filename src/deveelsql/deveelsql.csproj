@@ -160,6 +160,7 @@
     <Compile Include="Deveel.Data.Sql\RowIdIndex.cs" />
     <Compile Include="Deveel.Data.Sql\SqlCompositeType.cs" />
     <Compile Include="Deveel.Data.Sql.Client\SqlInterpreter.cs" />
+    <Compile Include="Deveel.Data.Sql\SystemColumnsTable.cs" />
     <Compile Include="Deveel.Data.Sql\SystemTable.cs" />
     <Compile Include="Deveel.Data.Sql\SystemTransaction_Indexes.cs" />
     <Compile Include="Deveel.Data.Sql\SystemTransaction_Tables.cs" />

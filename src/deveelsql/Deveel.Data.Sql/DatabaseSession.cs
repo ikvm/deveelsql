@@ -27,55 +27,6 @@ namespace Deveel.Data.Sql {
 				dbState = sysState.GetDatabase(database);
 		}
 
-		public static void AddForeignConstraint(SystemTransaction transaction, TableName sourceTable, string[] srcColSet, TableName destTable, string[] dstColSet) {
-			string anonName = "#ANON:" + Guid.NewGuid().ToString("D");
-
-			// The constraint table
-			SystemTable fcTable = transaction.GetTable(SystemTableNames.ColumnSet);
-			// Insert the data,
-			TableRow rowid = fcTable.NewRow();
-			rowid.SetValue(0, null);				// catalog
-			rowid.SetValue(1, sourceTable.Schema);	// table_schema
-			rowid.SetValue(2, sourceTable.Name);	// table_name
-			rowid.SetValue(3, anonName);			// name
-			rowid.SetValue(4, destTable.Schema);	// ref_table_schema
-			rowid.SetValue(5, destTable.Name);		// ref_table_name
-			rowid.SetValue(6, "FOREIGN_KEY");		// type
-			rowid.SetValue(7, null);				// check_source
-			rowid.SetValue(8, null);				// check_expression
-			rowid.SetValue(6, "NO ACTION");			// update_action
-			rowid.SetValue(7, "NO ACTION");			// delete_action
-			rowid.SetValue(8, false);				// deferred
-			rowid.SetValue(9, true);				// deferrable
-			fcTable.Insert(rowid);
-			fcTable.Commit();
-
-			SystemTable fccTable = transaction.GetTable(SystemTableNames.ColumnSet);
-			for (int i = 0; i < srcColSet.Length; i++) {
-				TableRow row = fccTable.NewRow();
-				row.SetValue(0, null);		// catalog
-				row.SetValue(1, sourceTable.Schema);
-				row.SetValue(2, sourceTable.Name);
-				row.SetValue(3, anonName);
-				row.SetValue(4, i);
-				row.SetValue(5, srcColSet[i]);
-				row.SetValue(6, "SOURCE");
-				row.Insert();
-			}
-			for (int i = 0; i < dstColSet.Length; i++) {
-				TableRow row = fccTable.NewRow();
-				row.SetValue(0, null);		// catalog
-				row.SetValue(1, sourceTable.Schema);
-				row.SetValue(2, sourceTable.Name);
-				row.SetValue(3, anonName);
-				row.SetValue(4, i);
-				row.SetValue(5, srcColSet[i]);
-				row.SetValue(6, "REFERENCE");
-				row.Insert();
-			}
-			fccTable.Commit();
-		}
-
 		public IDatabaseState CreateDatabase(string name, string adminUser, string adminPass, bool changeInSession) {
 			if (sysState == null)
 				throw new InvalidOperationException("Cannot create databases in this context.");
@@ -91,7 +42,159 @@ namespace Deveel.Data.Sql {
 				// First of all, the INFORMATION_SCHEMA ....
 				transaction.State.CreateSchema(SystemTableNames.SystemSchema);
 
-				//TODO:
+				// Create the system directory table (table id 1),
+				SystemTable tables = new SystemTable(transaction, transaction.State.CreateTable(SystemTableNames.Tables), 1);
+				tables.Columns.Add("id", SqlType.Numeric, true);
+				tables.Columns.Add("schema", SqlType.String, true);
+				tables.Columns.Add("name", SqlType.String, true);
+				tables.Columns.Add("type", SqlType.String, true);
+
+
+				// Create the system index tables (table id 2),
+				SystemTable indext = new SystemTable(transaction, transaction.State.CreateTable(SystemTableNames.Index), 2);
+				indext.Columns.Add("id", SqlType.Numeric, true);
+				indext.Columns.Add("schema", SqlType.String, true);
+				indext.Columns.Add("name", SqlType.String, true);
+				indext.Columns.Add("index_name", SqlType.String, true);
+				indext.Columns.Add("type", SqlType.String, true);
+
+				// Create an index over the system tables
+				Add2ColumnIndex(transaction, indext, "composite_name_idx", "schema", "name");
+				Add3ColumnIndex(transaction, indext, "index_composite_idx",
+													  "schema", "name", "index_name");
+				AddColumnIndex(transaction, indext, "id_idx", "id");
+				AddColumnIndex(transaction, tables, "id_idx", "id");
+				AddColumnIndex(transaction, tables, "schema_idx", "schema");
+				AddColumnIndex(transaction, tables, "name_idx", "name");
+				Add2ColumnIndex(transaction, tables, "composite_name_idx", "schema", "name");
+				AddColumnIndex(transaction, tables, "source_idx", "source");
+
+				// Dispose the table objects
+				tables.Dispose();
+				indext.Dispose();
+
+				// Add the directory item for this table itself
+				transaction.AddObject(1, SystemTableNames.Tables, "TABLE");
+				transaction.AddObject(2, SystemTableNames.Index, "TABLE");
+				transaction.RebuildSystemIndexes();
+
+				// We have now configured enough for all directory operations.
+
+				// ----- The schema table -----
+
+				// All valid schema defined by the database,
+				SystemTable schemaTable = transaction.CreateTable(SystemTableNames.Schema);
+				schemaTable.Columns.Add("name", SqlType.String, true);
+				AddColumnIndex(transaction, schemaTable, "name_idx", "name");
+
+				// Add an entry for the system SYS_INFO schema.
+				TableRow nrow = schemaTable.NewRow();
+				nrow.SetValue(0, SystemTableNames.SystemSchema);
+				nrow.Insert();
+
+				// ----- Table constraints -----
+
+				// A set of columns tied with a unique id used by the referential
+				// integrity tables.
+				SystemTable columnSetTable = transaction.CreateTable(SystemTableNames.ColumnSet);
+				columnSetTable.Columns.Add("id", SqlType.Numeric, true);
+				columnSetTable.Columns.Add("seq_no", SqlType.Numeric, true);
+				columnSetTable.Columns.Add("column_name", SqlType.String, true);
+				AddColumnIndex(transaction, columnSetTable, "id_idx", "id");
+
+				// Unique/Primary key constraints
+				SystemTable constraintsUnique = transaction.CreateTable(SystemTableNames.ConstraintsUnique);
+				constraintsUnique.Columns.Add("object_id", SqlType.Numeric, true);
+				constraintsUnique.Columns.Add("name", SqlType.String, false);
+				constraintsUnique.Columns.Add("column_set_id", SqlType.Numeric, true);
+				constraintsUnique.Columns.Add("deferred", SqlType.Boolean, false);
+				constraintsUnique.Columns.Add("deferrable", SqlType.Boolean, false);
+				constraintsUnique.Columns.Add("primary_key", SqlType.Boolean, false);
+				AddColumnIndex(transaction, constraintsUnique, "object_id_idx", "object_id");
+				AddColumnIndex(transaction, constraintsUnique, "name_idx", "name");
+
+				// Foreign key reference constraints
+				SystemTable constraintsForeign = transaction.CreateTable(SystemTableNames.ConstraintsForeign);
+				constraintsForeign.Columns.Add("object_id", SqlType.Numeric, true);
+				constraintsForeign.Columns.Add("name", SqlType.String, false);
+				constraintsForeign.Columns.Add("column_set_id", SqlType.Numeric, true);
+				constraintsForeign.Columns.Add("ref_schema", SqlType.String, true);
+				constraintsForeign.Columns.Add("ref_object", SqlType.Numeric, true);
+				constraintsForeign.Columns.Add("ref_column_set_id", SqlType.Numeric, true);
+				constraintsForeign.Columns.Add("update_action", SqlType.String, false);
+				constraintsForeign.Columns.Add("delete_action", SqlType.String, false);
+				constraintsForeign.Columns.Add("deferred", SqlType.Boolean, true);
+				constraintsForeign.Columns.Add("deferrable", SqlType.Boolean, false);
+				AddColumnIndex(transaction, constraintsForeign, "object_id_idx", "object_id");
+				AddColumnIndex(transaction, constraintsForeign, "name_idx", "name");
+				Add2ColumnIndex(transaction, constraintsForeign, "composite_name_idx", "ref_schema", "ref_object");
+
+				// Expression check constraints
+				SystemTable constraintsCheck = transaction.CreateTable(SystemTableNames.ConstraintsCheck);
+				constraintsCheck.Columns.Add("object_id", SqlType.Numeric, true);
+				constraintsCheck.Columns.Add("name", SqlType.String, false);
+				constraintsCheck.Columns.Add("check_source", SqlType.String, true);
+				constraintsCheck.Columns.Add("check_bin", SqlType.Binary, true);
+				constraintsCheck.Columns.Add("deferred", SqlType.Boolean, false);
+				constraintsCheck.Columns.Add("deferrable", SqlType.Boolean, false);
+				AddColumnIndex(transaction, constraintsCheck, "object_id_idx", "object_id");
+				AddColumnIndex(transaction, constraintsCheck, "name_idx", "name");
+
+				// Default column expressions
+				SystemTable default_column_expr_ts = transaction.CreateTable(SystemTableNames.DefaultColumnExpression);
+				default_column_expr_ts.Columns.Add("object_id", SqlType.Numeric, true);
+				default_column_expr_ts.Columns.Add("column", SqlType.String, true);
+				default_column_expr_ts.Columns.Add("default_source", SqlType.String, true);
+				default_column_expr_ts.Columns.Add("default_bin", SqlType.Binary, true);
+				AddColumnIndex(transaction, default_column_expr_ts, "object_id_idx", "object_id");
+
+
+				// Insert referential constraints on the system tables so they cascade
+				// delete.
+				long src_col_set, dst_col_set;
+
+				src_col_set = AddColumnSet(transaction, new String[] { "object_id" });
+				dst_col_set = AddColumnSet(transaction, new String[] { "id" });
+				AddForeignConstraint(transaction, SystemTableNames.ConstraintsUnique, src_col_set,
+				                     SystemTableNames.Tables, dst_col_set);
+				src_col_set = AddColumnSet(transaction, new String[] { "object_id" });
+				dst_col_set = AddColumnSet(transaction, new String[] { "id" });
+				AddForeignConstraint(transaction, SystemTableNames.ConstraintsForeign, src_col_set,
+				                     SystemTableNames.Tables, dst_col_set);
+				src_col_set = AddColumnSet(transaction, new String[] { "object_id" });
+				dst_col_set = AddColumnSet(transaction, new String[] { "id" });
+				AddForeignConstraint(transaction, SystemTableNames.ConstraintsCheck, src_col_set,
+				                     SystemTableNames.Tables, dst_col_set);
+				src_col_set = AddColumnSet(transaction, new String[] { "object_id" });
+				dst_col_set = AddColumnSet(transaction, new String[] { "id" });
+				AddForeignConstraint(transaction, SystemTableNames.DefaultColumnExpression, src_col_set,
+				                     SystemTableNames.Tables, dst_col_set);
+				src_col_set = AddColumnSet(transaction, new String[] { "id" });
+				dst_col_set = AddColumnSet(transaction, new String[] { "column_set_id" });
+				AddForeignConstraint(transaction, SystemTableNames.ColumnSet, src_col_set,
+				                     SystemTableNames.ConstraintsForeign, dst_col_set);
+				src_col_set = AddColumnSet(transaction, new String[] { "id" });
+				dst_col_set = AddColumnSet(transaction, new String[] { "ref_column_set_id" });
+				AddForeignConstraint(transaction, SystemTableNames.ColumnSet, src_col_set,
+				                     SystemTableNames.ConstraintsForeign, dst_col_set);
+				src_col_set = AddColumnSet(transaction, new String[] { "id" });
+				dst_col_set = AddColumnSet(transaction, new String[] { "column_set_id" });
+				AddForeignConstraint(transaction, SystemTableNames.ColumnSet, src_col_set,
+				                     SystemTableNames.ConstraintsUnique, dst_col_set);
+
+				// Rebuild the indexes on the tables we added information to.
+				transaction.RebuildIndexes(SystemTableNames.ColumnSet);
+				transaction.RebuildIndexes(SystemTableNames.ConstraintsForeign);
+
+
+
+				// Add a directory item for the system columns table
+				transaction.AddObject(4, SystemTableNames.TableColumns, "DYN:Deveel.Data.Sql.SystemColumnsTable");
+
+				// The empty and single row zero column item (should this be in
+				// TSTransaction?)
+				transaction.AddObject(5, SystemTableNames.EmptyTable, "PRIMITIVE:EmptyTable");
+				transaction.AddObject(6, SystemTableNames.OneRowTable, "PRIMITIVE:OneRowTable");
 
 				// Commit the transaction and finish
 				CommitTransaction(transaction);
@@ -105,6 +208,14 @@ namespace Deveel.Data.Sql {
 				dbState = state;
 
 			return state;
+		}
+
+		private void AddForeignConstraint(SystemTransaction transaction, TableName srcTableName, long srcColSet, TableName refTableName, long refColSet) {
+			throw new NotImplementedException();
+		}
+
+		private long AddColumnSet(SystemTransaction transaction, string[] columns) {
+			throw new NotImplementedException();
 		}
 
 		private void Add3ColumnIndex(SystemTransaction transaction, SystemTable table, string indexName, string column1, string column2, string column3) {

@@ -14,7 +14,7 @@ namespace Deveel.Data.Sql {
 		public static readonly SqlObject True = new SqlObject(SqlType.Boolean, SqlValue.FromBoolean(true));
 		public static readonly SqlObject False = new SqlObject(SqlType.Boolean, SqlValue.FromBoolean(false));
 
-		public SqlObject(SqlType type, SqlValue value) {
+		internal SqlObject(SqlType type, SqlValue value) {
 			this.type = type;
 			this.value = value;
 		}
@@ -32,7 +32,7 @@ namespace Deveel.Data.Sql {
 			get { return type; }
 		}
 
-		public SqlValue Value {
+		internal SqlValue Value {
 			get { return value; }
 		}
 
@@ -156,15 +156,15 @@ namespace Deveel.Data.Sql {
 			if (value == null || destType.IsNull)
 				return MakeNull(type);
 
-			object destValue;
+			SqlObject destValue;
 
 			try {
-				destValue = type.Cast(value.ToObject());
+				destValue = destType.Cast(this);
 			} catch (Exception e) {
 				throw new ArgumentException("Unable to cast value type " + type + " to " + destType, e);
 			}
 
-			return new SqlObject(destType, SqlValue.FromObject(destValue));
+			return destValue;
 		}
 
 		public static int Compare(SqlObject[] val1, SqlObject[] val2) {
@@ -254,11 +254,11 @@ namespace Deveel.Data.Sql {
 			return type.GetHashCode() ^ value.GetHashCode();
 		}
 
-		public static SqlObject CastTo(object value, SqlType destType) {
+		public static SqlObject CastTo(SqlObject value, SqlType destType) {
 			if (destType == null)
 				throw new ArgumentNullException("destType");
 
-			return new SqlObject(destType, SqlValue.FromObject(destType.Cast(value)));
+			return destType.Cast(value);
 		}
 
 		internal static SqlObject CompositeString(string[] array) {

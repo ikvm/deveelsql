@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace Deveel.Data.Sql {
 	[DebuggerDisplay("{ToObject()}")]
-	public sealed class SqlBinaryValue : SqlValue {
+	internal sealed class SqlBinaryValue : SqlValue {
 		private readonly byte[] buffer;
 		private readonly int index;
 		private readonly int length;

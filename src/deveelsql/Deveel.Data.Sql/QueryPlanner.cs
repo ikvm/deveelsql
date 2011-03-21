@@ -475,7 +475,7 @@ namespace Deveel.Data.Sql {
 							// If the collation of the composite is descending, then we can't
 							// represent it as a composite index,
 							SqlObject tv = (SqlObject)functionExp.Parameters[(i * 2) + 1];
-							if (!tv.Value.ToBoolean().GetValueOrDefault()) {
+							if (!tv.Value.ToBoolean()) {
 								valid = false;
 								break;
 							}

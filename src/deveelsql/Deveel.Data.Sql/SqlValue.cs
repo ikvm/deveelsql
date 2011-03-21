@@ -5,7 +5,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 
 namespace Deveel.Data.Sql {
-	public abstract class SqlValue : IComparable<SqlValue> {
+	internal abstract class SqlValue : IComparable<SqlValue> {
 		public static readonly SqlValue Null = new SqlBinaryValue(new byte[] { NullType });
 
 		private static readonly SqlValue StringNull = new SqlBinaryValue(new byte[] { StringNullType });
@@ -137,11 +137,11 @@ namespace Deveel.Data.Sql {
 			}
 		}
 
-		public bool? ToBoolean() {
+		public bool ToBoolean() {
 			// The null case,
 			byte b = PeekByte(0);
 			if (b < 64)
-				return null;
+				return false;
 
 			if (b == BooleanFalseType)
 				return false;
@@ -186,6 +186,8 @@ namespace Deveel.Data.Sql {
 				return false;
 			if (b == BinaryType)
 				return ToBinary();
+			if (b == DateTimeType)
+				return ToDateTime();
 
 			throw new ArgumentException("Unknown value format");
 		}

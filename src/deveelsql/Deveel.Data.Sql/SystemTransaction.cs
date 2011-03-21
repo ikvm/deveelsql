@@ -149,7 +149,7 @@ namespace Deveel.Data.Sql {
 			journal.AddEntry(new JournalEntry(JournalCommandCode.TableAlter, tableId));
 		}
 
-		internal void AddObject(TableName tableName, string type) {
+		internal void AddObject(long tableId, TableName tableName, string type) {
 			SystemTable tables = GetTable(SystemTableNames.Tables);
 			TableRow row = tables.NewRow();
 			row.SetValue(1,tableName.Schema);

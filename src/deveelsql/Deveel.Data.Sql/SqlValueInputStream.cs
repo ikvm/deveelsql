@@ -2,7 +2,7 @@
 using System.IO;
 
 namespace Deveel.Data.Sql {
-	public sealed class SqlValueInputStream : Stream {
+	sealed class SqlValueInputStream : Stream {
 		private int position;
 		private readonly int length;
 		private readonly SqlValue value;

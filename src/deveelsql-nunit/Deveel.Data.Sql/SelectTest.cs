@@ -59,14 +59,14 @@ namespace Deveel.Data.Sql {
 			row["id"] = 1;
 			row["book_id"] = 1;
 			row["name_id"] = 1;
-			row["read_date"] = "22/12/2001";
+			row["read_date"] = "2001-12-22";
 			row.Insert();
 
 			row = table.NewRow();
 			row["id"] = 2;
 			row["book_id"] = 2;
 			row["name_id"] = 1;
-			row["read_date"] = "10/05/2009";
+			row["read_date"] = "2009-05-10";
 			row.Insert();
 
 			table.Commit();
@@ -107,7 +107,9 @@ namespace Deveel.Data.Sql {
 		[Test]
 		public void InnerJoinSelect() {
 			IDbCommand command = connection.CreateCommand();
-			command.CommandText = "SELECT b.title, n.first_name, br.read_date FROM book_read br, names n, books b WHERE br.book_id = b.id AND br.name_id = n.id;";
+			command.CommandText = "SELECT b.title, n.first_name, br.read_date " +
+			                      "FROM book_read br, names n, books b " +
+			                      "WHERE br.book_id = b.id AND br.name_id = n.id;";
 			IDataReader reader = command.ExecuteReader();
 
 			while (reader.Read()) {
@@ -117,7 +119,16 @@ namespace Deveel.Data.Sql {
 
 		[Test]
 		public void GroupBySelect() {
-			Query query = new Query("select n.id, n.first_name, max(br.read_date) from names n, books b, book_read br where n.id = br.name_id and b.id = br.book_id group by n.id, n.last_name order by upper(n.last_name);");
+			IDbCommand command = connection.CreateCommand();
+			command.CommandText = "SELECT n.id, n.first_name, max(br.read_date) " +
+			                      "FROM names n, books b, book_read br " +
+			                      "WHERE n.id = br.name_id and b.id = br.book_id " +
+			                      "GROUP by n.id, n.last_name ORDER BY upper(n.last_name);";
+			IDataReader reader = command.ExecuteReader();
+
+			while (reader.Read()) {
+				
+			}
 		}
 	}
 }
