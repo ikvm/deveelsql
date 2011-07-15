@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	public sealed class Function : ILineInfo {

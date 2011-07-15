@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 
 using Deveel.Data.Base;
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	internal sealed partial class SystemTransaction {

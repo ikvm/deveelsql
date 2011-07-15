@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql.Client {
 	public sealed class EmbeddedSessionContext : ISessionContext {
@@ -23,11 +23,11 @@ namespace Deveel.Data.Sql.Client {
 			this.username = username;
 		}
 
-		public EmbeddedSessionContext(IDatabaseState dbState, bool allowShutdown, string username)
-			: this(new DatabaseSession(dbState), allowShutdown, username) {
+		public EmbeddedSessionContext(IDatabase db, bool allowShutdown, string username)
+			: this(new DatabaseSession(db), allowShutdown, username) {
 		}
 
-		public EmbeddedSessionContext(ISystemState sysState, string database, bool allowShutdown, string username)
+		public EmbeddedSessionContext(IDatabaseSystem sysState, string database, bool allowShutdown, string username)
 			: this(new DatabaseSession(sysState, database), allowShutdown, username) {
 		}
 

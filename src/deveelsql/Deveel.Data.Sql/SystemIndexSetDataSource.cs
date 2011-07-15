@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	sealed class SystemIndexSetDataSource : IIndexSetDataSource {

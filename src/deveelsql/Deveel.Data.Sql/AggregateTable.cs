@@ -2,7 +2,7 @@
 using System.Diagnostics;
 
 using Deveel.Data.Base;
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	public class AggregateTable : FilteredTable {

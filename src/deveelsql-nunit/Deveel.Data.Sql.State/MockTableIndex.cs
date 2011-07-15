@@ -5,7 +5,7 @@ using System.IO;
 
 using Deveel.Data.Base;
 
-namespace Deveel.Data.Sql.State {
+namespace Deveel.Data.Sql {
 	public sealed class MockTableIndex : ITableIndex {
 		private readonly MockTable table;
 		private readonly IndexName name;

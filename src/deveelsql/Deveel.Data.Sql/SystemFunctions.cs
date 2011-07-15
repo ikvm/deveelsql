@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Text;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 using Deveel.Math;
 
 namespace Deveel.Data.Sql {

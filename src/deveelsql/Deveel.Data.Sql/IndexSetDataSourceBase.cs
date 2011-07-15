@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 using Deveel.Data.Base;
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	public abstract class IndexSetDataSourceBase : IIndexSetDataSource {

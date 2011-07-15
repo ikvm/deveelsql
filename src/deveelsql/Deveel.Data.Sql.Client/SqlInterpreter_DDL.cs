@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql.Client {
 	internal sealed partial class SqlInterpreter {

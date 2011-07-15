@@ -1,6 +1,6 @@
 ﻿using System;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql.Client {
 	internal class QueryParametersTable : IMutableTable {

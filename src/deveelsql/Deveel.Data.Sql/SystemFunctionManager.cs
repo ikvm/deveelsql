@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 
 using Deveel.Data.Sql.Parser;
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	internal class SystemFunctionManager {

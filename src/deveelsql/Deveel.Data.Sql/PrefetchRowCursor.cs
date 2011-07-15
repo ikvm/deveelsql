@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	public class PrefetchRowCursor : IRowCursor {

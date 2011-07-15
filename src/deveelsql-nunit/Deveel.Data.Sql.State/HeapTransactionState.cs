@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 
-namespace Deveel.Data.Sql.State {
+namespace Deveel.Data.Sql {
 	public sealed class HeapTransactionState : ITransactionState {
-		private readonly HeapDatabaseState dbState;
+		private readonly HeapDatabase db;
 		private readonly Dictionary<long , Stream> allocated;
 		internal readonly Dictionary<TableName, ITable> tables;
 		private readonly Dictionary<IndexName, ITableIndex> indexes;
@@ -15,16 +15,16 @@ namespace Deveel.Data.Sql.State {
 
 		private readonly object SyncRoot = new object();
 
-		public HeapTransactionState(HeapDatabaseState dbState, int id) {
+		public HeapTransactionState(HeapDatabase db, int id) {
 			allocated = new Dictionary<long, Stream>();
-			this.dbState = dbState;
+			this.db = db;
 			this.id = id;
 
 			tables = new Dictionary<TableName, ITable>();
 			indexes = new Dictionary<IndexName, ITableIndex>();
 			schemata = new List<string>();
 
-			foreach (KeyValuePair<TableName, ITable> table in dbState.tables) {
+			foreach (KeyValuePair<TableName, ITable> table in db.tables) {
 				tables[table.Key] = table.Value;
 			}
 		}
@@ -41,8 +41,8 @@ namespace Deveel.Data.Sql.State {
 			get { return 8; }
 		}
 
-		public IDatabaseState Database {
-			get { return dbState; }
+		public IDatabase Database {
+			get { return db; }
 		}
 
 		public int Id {
@@ -72,7 +72,7 @@ namespace Deveel.Data.Sql.State {
 		}
 
 		public long CreateUniqueId(TableName tableName) {
-			return dbState.CreateUniqueId(tableName);
+			return db.CreateUniqueId(tableName);
 		}
 
 		public void DeleteTable(TableName tableName) {

@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Deveel.Data.Sql.State {
+namespace Deveel.Data.Sql {
 	public sealed class MockTable : IMutableTable {
 		private readonly TableName name;
 		private readonly ColumnCollection columns;

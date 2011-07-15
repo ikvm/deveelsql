@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	internal partial class SystemFunctions {

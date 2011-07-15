@@ -2,7 +2,7 @@
 using System.Data;
 
 using Deveel.Data.Sql.Client;
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 using NUnit.Framework;
 
@@ -14,7 +14,7 @@ namespace Deveel.Data.Sql {
 
 		[TestFixtureSetUp]
 		public void TestSetUp() {
-			HeapDatabaseState testdb = new HeapDatabaseState(null, "testdb");
+			HeapDatabase testdb = new HeapDatabase(null, "testdb");
 			ITransactionState transaction = testdb.CreateTransaction();
 			transaction.CreateSchema("test");
 

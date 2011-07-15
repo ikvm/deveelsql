@@ -4,7 +4,7 @@ using System.Data;
 using System.IO;
 
 using Deveel.Data.Sql.Parser;
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql.Client {
 	internal sealed partial class SqlInterpreter {

@@ -1,40 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	internal class DatabaseSession {
-		private readonly ISystemState sysState;
-		private IDatabaseState dbState;
+		private readonly IDatabaseSystem sysState;
+		private IDatabase db;
 		private readonly object commitSyncRoot = new object();
 		private long currentCommitVersion = 100;
 
-		public DatabaseSession(IDatabaseState dbState) {
-			if (dbState == null)
-				throw new ArgumentNullException("dbState");
+		public DatabaseSession(IDatabase db) {
+			if (db == null)
+				throw new ArgumentNullException("db");
 
-			this.dbState = dbState;
-			sysState = dbState.System;
+			this.db = db;
+			sysState = db.System;
 		}
 
-		public DatabaseSession(ISystemState sysState, string database) {
+		public DatabaseSession(IDatabaseSystem sysState, string database) {
 			if (sysState == null)
 				throw new ArgumentNullException("sysState");
 
 			this.sysState = sysState;
 			if (!String.IsNullOrEmpty(database))
-				dbState = sysState.GetDatabase(database);
+				db = sysState.GetDatabase(database);
 		}
 
-		public IDatabaseState CreateDatabase(string name, string adminUser, string adminPass, bool changeInSession) {
+		public IDatabase CreateDatabase(string name, string adminUser, string adminPass, bool changeInSession) {
 			if (sysState == null)
 				throw new InvalidOperationException("Cannot create databases in this context.");
 
 			if (sysState.GetDatabase(name) != null)
 				throw new InvalidOperationException("Database '" + name + "' already exists.");
 
-			IDatabaseState state = sysState.CreateDatabase(name);
+			IDatabase state = sysState.CreateDatabase(name);
 
 			SystemTransaction transaction = CreateTransaction(User.System.Name);
 
@@ -205,7 +205,7 @@ namespace Deveel.Data.Sql {
 			}
 
 			if (changeInSession)
-				dbState = state;
+				db = state;
 
 			return state;
 		}
@@ -230,7 +230,7 @@ namespace Deveel.Data.Sql {
 			throw new NotImplementedException();
 		}
 
-		public IDatabaseState CreateDatabase(string name, string adminUser, string adminPass) {
+		public IDatabase CreateDatabase(string name, string adminUser, string adminPass) {
 			return CreateDatabase(name, adminUser, adminPass, true);
 		}
 
@@ -239,11 +239,11 @@ namespace Deveel.Data.Sql {
 			if (user.IsSystem)
 				throw new ArgumentException("System user cannot create a transaction explicitely.");
 
-			return CreateTransaction(dbState, user);
+			return CreateTransaction(db, user);
 		}
 
-		private SystemTransaction CreateTransaction(IDatabaseState databaseState, User user) {
-			if (databaseState == null)
+		private SystemTransaction CreateTransaction(IDatabase database, User user) {
+			if (database == null)
 				throw new InvalidOperationException("No database selected");
 
 			// The commit version number of this transaction
@@ -252,13 +252,13 @@ namespace Deveel.Data.Sql {
 				transactionVersionNumber = currentCommitVersion;
 			}
 
-			return new SystemTransaction(this, databaseState.CreateTransaction(), transactionVersionNumber, user);
+			return new SystemTransaction(this, database.CreateTransaction(), transactionVersionNumber, user);
 		}
 
 		public void DisposeTransaction(SystemTransaction transaction) {
 			ITransactionState transactionState = transaction.State;
 			transaction.MarkAsDisposed();
-			dbState.DisposeTransaction(transactionState);
+			db.DisposeTransaction(transactionState);
 		}
 
 		public void CommitTransaction(SystemTransaction transaction) {
@@ -310,7 +310,7 @@ namespace Deveel.Data.Sql {
 					// the given transaction was created, and we need to move any updates
 					// from the committing transaction to the latest update.
 
-					workingTransaction = new SystemTransaction(this, dbState.CreateTransaction(), currentCommitVersion, transaction.User.Verified());
+					workingTransaction = new SystemTransaction(this, db.CreateTransaction(), currentCommitVersion, transaction.User.Verified());
 
 					// SystemTable merges,
 
@@ -541,7 +541,7 @@ namespace Deveel.Data.Sql {
 
 				try {
 					// And commit the working transaction
-					dbState.CommitTransaction(workingTransaction.State);
+					db.CommitTransaction(workingTransaction.State);
 
 					// Increment the commit version number
 					++currentCommitVersion;

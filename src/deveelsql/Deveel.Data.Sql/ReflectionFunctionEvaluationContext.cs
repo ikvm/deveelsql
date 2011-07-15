@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-using Deveel.Data.Sql.State;
+using Deveel.Data.Sql;
 
 namespace Deveel.Data.Sql {
 	class ReflectionFunctionEvaluationContext : IFunctionEvaluationContext {
